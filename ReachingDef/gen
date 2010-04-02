@@ -1,0 +1,1 @@
+llvm-gcc -emit-llvm -c $1 -o hello.bc; opt -mem2reg hello.bc -o hello.bc -f; rm hello.ll;llvm-dis hello.bc
