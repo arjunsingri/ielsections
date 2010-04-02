@@ -130,8 +130,8 @@ class IELSection
 {
     public:
     
-        IELSection(Loop* loop)
-            : m_loop(loop), m_isIELSection(false)
+        IELSection(Loop* loop, int id)
+            : m_loop(loop), m_isIELSection(false), m_id(id)
         {
         }
 
@@ -142,6 +142,8 @@ class IELSection
                 delete m_silParameters[i];
             }
         }
+
+        int getId(void) { return m_id; }
 
         bool isIELSection(void) { return m_isIELSection; };
         void setIELSection(bool isIELSection) { m_isIELSection = isIELSection; }
@@ -214,6 +216,7 @@ class IELSection
         {
             SILParameterList& silParameters = getSILParameters();
             std::cout << "Loop header: " << m_loop->getHeader()->getName() << "\nSil parameters: " << silParameters.size() << std::endl;
+            /*
             for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)
             {
                 SILParameter* currentParameter = *i;
@@ -222,6 +225,7 @@ class IELSection
                           << "SI/L: " << MapEnum2Str[currentParameter->getSILValue()] << "\n"
                           << "--------------------\n";
             }
+            */
        }
 
     private:
@@ -230,6 +234,7 @@ class IELSection
         std::map<Value*, SILParameter*> m_silParametersMap;
         std::vector<BasicBlock*> m_blocks;
         bool m_isIELSection;
+        int m_id;
 };
 
 class SIL : public LoopPass
@@ -238,13 +243,16 @@ class SIL : public LoopPass
     std::map<Value*, Value*> m_toArray;
     std::map<Value*, std::vector<Value*> >  m_arrayDefinitions;
     std::map<Value*, std::vector<BasicBlock*> > m_arrayDefinitionsBlocks;
+    int m_id;
 
     public:
         static char ID;
         
-        SIL() : LoopPass(&ID)
+        SIL() : LoopPass(&ID), m_id(0)
         {
         }
+
+        int getId(void) { return m_id++; }
 
         const std::vector<IELSection*>& getIELSections(void)
         {
@@ -262,6 +270,7 @@ class SIL : public LoopPass
 
                 if (currentParameter->isValueArray())
                 {
+                    assert(false);
                     std::vector<Value*> arrayDefinitions = currentParameter->getArrayDefinitions();
                     std::vector<BasicBlock*> arrayDefinitionBlocks = currentParameter->getArrayDefinitionBlocks();
 
@@ -275,7 +284,6 @@ class SIL : public LoopPass
                     {
                         currentParameter->setSILValue(DontKnow);
                     }
-                    continue;
                 }
                 else if (!currentParameter->isValuePhiNode())
                 {
@@ -290,32 +298,31 @@ class SIL : public LoopPass
                         currentParameter->addRD(valueAsInstruction, parent);
                     }
 
-                    //all values that are not phi nodes will be assigned this value
-                    //a value can either be inside the loop or outside it but not both
-                    currentParameter->setSILValue(DontKnow);
-                    continue;
-                }
-
-                PHINode* phiNode = dyn_cast<PHINode>(currentParameter->getValue());
-                assert(phiNode != NULL);
-
-                //get all definitions reaching this phi node; have to consider the cases where phi node is made up of other phi nodes
- 
-                std::vector<BasicBlock*> phiDefinitionsBlock;
-                std::vector<Value*> phiDefinitions;
-                std::vector<PHINode*> phiNodes;
-
-                getPhiDefinitions(phiNode, phiDefinitionsBlock, phiDefinitions, phiNodes);
-                assert(phiDefinitionsBlock.size() == phiDefinitions.size());
-
-                std::pair<bool, bool> insideOutside = ielSection->isInsideOutside(currentParameter, phiDefinitions, phiDefinitionsBlock) ;
-                if (insideOutside.first && insideOutside.second)
-                {
-                    currentParameter->setSILValue(False);
+                   currentParameter->setSILValue(DontKnow);
                 }
                 else
                 {
-                    currentParameter->setSILValue(DontKnow);
+                    PHINode* phiNode = dyn_cast<PHINode>(currentParameter->getValue());
+                    assert(phiNode != NULL);
+
+                    //get all definitions reaching this phi node; have to consider the cases where phi node is made up of other phi nodes
+
+                    std::vector<BasicBlock*> phiDefinitionsBlock;
+                    std::vector<Value*> phiDefinitions;
+                    std::vector<PHINode*> phiNodes;
+
+                    getPhiDefinitions(phiNode, phiDefinitionsBlock, phiDefinitions, phiNodes);
+                    assert(phiDefinitionsBlock.size() == phiDefinitions.size());
+
+                    std::pair<bool, bool> insideOutside = ielSection->isInsideOutside(currentParameter, phiDefinitions, phiDefinitionsBlock);
+                    if (insideOutside.first && insideOutside.second)
+                    {
+                        currentParameter->setSILValue(False);
+                    }
+                    else
+                    {
+                        currentParameter->setSILValue(DontKnow);
+                    }
                 }
                 
             /*
@@ -417,14 +424,20 @@ class SIL : public LoopPass
 
                 for (User::op_iterator j = inst->op_begin(); j != inst->op_end(); ++j)
                 {
-                    if (isa<Constant>(*j))
+                    if (isa<Constant>(*j) || !isa<Instruction>(*j))
                         continue;
 
                     //this can never return NULL as all *j that are considered here are inside the loop 
                     //and we have constructed an SILParameter object for all variables used inside the loop
                     SILParameter* p = ielSection->getSILParameter(*j);
-                    if (p == NULL){ std::cout << *inst << std::endl; std::cout << *(j->get()) << std::endl; std::cout << *silParameter->getInstruction() << std::endl; }
-                    
+                /*
+                    if (p == NULL)
+                    { 
+                        std::cout << "error: " << *inst << std::endl; 
+                        std::cout << *(j->get()) << std::endl; 
+                        std::cout << *silParameter->getInstruction() << std::endl;
+                    }
+                */  
                     assert(p != NULL);
 
                     if (p->getSILValue() == False)
@@ -516,12 +529,13 @@ class SIL : public LoopPass
         {
             assert (loop->getHeader() == *loop->block_begin() && "First node is not the header!");
 
-            IELSection* currentIELSection = new IELSection(loop);
+            IELSection* currentIELSection = new IELSection(loop, getId());
             std::map<Value*, int> opcount;
 
             //skip the header of the loop
             for (LoopBase<BasicBlock>::block_iterator block = loop->block_begin() + 1; block != loop->block_end(); ++block)
             {
+                //std::cout << **block << std::endl;
                 currentIELSection->addBlock(*block);
                 for (BasicBlock::iterator instr = (*block)->begin(); instr != (*block)->end(); ++instr)
                 {
@@ -530,6 +544,26 @@ class SIL : public LoopPass
                         continue;
                     }
 
+                    if (StoreInst* storeInst = dyn_cast<StoreInst>(instr))
+                    {
+                        Value* storeOperand = storeInst->getPointerOperand();
+                        BasicBlock::iterator prev = instr;
+                        --prev;
+                        if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(prev))
+                        {
+                            const Type* elementType = getElementPtrInst->getPointerOperandType()->getElementType();
+                            if (elementType->getTypeID() == Type::ArrayTyID)
+                            {
+                                if (storeOperand == getElementPtrInst)
+                                {
+                                    //std::cout << "array store found! discarding..." << std::endl;
+                                    //std::cout << *getElementPtrInst << std::endl;
+                                    delete currentIELSection;
+                                    return NULL;
+                                }
+                            }
+                        }
+                    }
 /*
                     if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(instr))
                     {
@@ -579,11 +613,17 @@ class SIL : public LoopPass
                             //ignore all loops containing function calls as we don't how to handle them
                             if (isa<Function>(v))
                             {
-                                std::cerr << "Can't handle function calls: " << loop->getHeader()->getName() << std::endl;
+                                //std::cerr << "Can't handle function calls: " << loop->getHeader()->getName() << std::endl;
                                 delete currentIELSection;
                                 return NULL;
                             }
 
+                            continue;
+                        }
+
+                        if (!isa<Instruction>(v))
+                        {
+                            //std::cout << "not inst: " << *v << std::endl;
                             continue;
                         }
 
@@ -615,10 +655,10 @@ class SIL : public LoopPass
             bool isIELSection = true;
             std::vector<BasicBlock*> blocks = ielSection->getBlocks();
             //std::cout << "----Loop header: " << loop->getHeader()->getName() << " blocks: " << blocks.size() << std::endl;
-
-            for (std::vector<BasicBlock*>::iterator block = blocks.begin(); block != blocks.end() && isIELSection; ++block)
+            
+            for (std::vector<BasicBlock*>::iterator block = blocks.begin(); block != blocks.end()/* && isIELSection*/; ++block)
             {
-                for (BasicBlock::iterator instr = (*block)->begin(); instr != (*block)->end() && isIELSection; ++instr)
+                for (BasicBlock::iterator instr = (*block)->begin(); instr != (*block)->end()/* && isIELSection*/; ++instr)
                 {
                     if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(instr))
                     {
@@ -626,6 +666,7 @@ class SIL : public LoopPass
 
                         if (elementType->getTypeID() == Type::ArrayTyID)
                         {
+                            //std::cout << *getElementPtrInst << std::endl;
                             for (User::op_iterator index = getElementPtrInst->idx_begin(); index != getElementPtrInst->idx_end(); ++index)
                             {
                                 if (!isa<Constant>(*index))
@@ -640,7 +681,11 @@ class SIL : public LoopPass
                                 }
                             }
                         }
-                   }
+                        else
+                        {
+                            //std::cout << *elementType << std::endl;
+                        }
+                    }
                     else if (BranchInst* branchInst = dyn_cast<BranchInst>(instr))
                     {
                         if (branchInst->isConditional())
@@ -672,7 +717,7 @@ class SIL : public LoopPass
                 runStep3(ielSection);
 
                 ielSection->setIELSection(checkIELSection(ielSection));
-                //ielSection->printIELSection();
+                ielSection->printIELSection();
             }
 
             //dump();
@@ -697,7 +742,6 @@ class SIL : public LoopPass
             }
         }
 
-
         virtual void getAnalysisUsage(AnalysisUsage& AU) const
         {
             AU.setPreservesAll();
@@ -708,4 +752,3 @@ class SIL : public LoopPass
 
 char SIL::ID = 0;
 RegisterPass<SIL> sil("findiel", "find all IE/L sections");
-
