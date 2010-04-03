@@ -115,6 +115,7 @@ void ReachingDef::findDownwardsExposed(BasicBlock* block)
                     m_killedMap[*j].push_back(storeInst);
                     m_killedMap[storeInst].push_back(*j);
                 }
+                //std::cout << "may be killed " << *storeInst << std::endl;
             }
 
             m_assignmentMap[coreOperand].push_back(storeInst);
@@ -127,6 +128,7 @@ void ReachingDef::findDownwardsExposed(BasicBlock* block)
             {
                 //set the last instruction that was in the last write map to be not downwards exposed
                 currentDownwardsExposedMap[currentLastWriteMap[coreOperand]] = false;
+                //std::cout << "not downwards " << *currentLastWriteMap[coreOperand] << std::endl;
             }
 
             currentLastWriteMap[coreOperand] = storeInst;
@@ -152,11 +154,10 @@ void ReachingDef::constructGenSet(BasicBlock* block)
             if (where->second)
             {
                 basicBlockDup->addToGenSet(&inst);
+                //std::cout << "gen: " << inst << std::endl;
             }
         }
     }
-
-    std::cout << basicBlockDup->getGenSet().size() << std::endl;
 }
 
 void ReachingDef::constructKillSet(BasicBlock* block)
@@ -172,20 +173,63 @@ void ReachingDef::constructKillSet(BasicBlock* block)
         if (where != m_killedMap.end())
         {
             basicBlockDup->addToKillSet(where->second);
+            //std::cout << "killed " << inst << std::endl;
         }
     }
 }
 
 void ReachingDef::constructInSets(Function& function)
 {
-    std::queue<BasicBlock*> worklist;
-    std::map<BasicBlock*, bool> visited;
+    bool hasChanged;
+    int iter = 0;
 
-    // do a BFS and find all CFG edges (C, B) such that B does not post-dominate C
+    do
+    {
+        hasChanged = false;
+
+        for (Function::iterator i = function.begin(); i != function.end(); ++i)
+        {
+            BasicBlock* block = &*i;
+ 
+            //std::cout << block->getNameStr() << std::endl;
+            BasicBlockDup* dup = m_basicBlockDupMap[block];
+            InSetType& inSet = dup->getInSet();
+            for (pred_iterator j = pred_begin(block); j != pred_end(block); ++j)
+            {
+                BasicBlockDup* predDup = m_basicBlockDupMap[*j];
+                OutSetType& outSet = predDup->getOutSet();
+                inSet.insert(outSet.begin(), outSet.end());
+            }
+
+            KillSetType& killSet = dup->getKillSet();
+
+            InSetType tempSet;
+
+            //std::set_difference(inSet.begin(), inSet.end(), killSet.begin(), killSet.end(), inserter(tempSet, tempSet.begin()));
+
+            OutSetType& outSet = dup->getOutSet();
+            size_t oldOutSetSize = outSet.size();
+
+            GenSetType& genSet = dup->getGenSet();
+            //std::set_union(genSet.begin(), genSet.end(), tempSet.begin(), tempSet.end(), inserter(outSet, outSet.begin()));
+            std::set_union(genSet.begin(), genSet.end(), inSet.begin(), inSet.end(), inserter(outSet, outSet.begin()));
+            if (outSet.size() != oldOutSetSize)
+            {
+                hasChanged = true;
+            }
+        }
+
+        //std::cout << iter << std::endl;
+        ++iter;
+    } while (hasChanged);
+
+/*
+    std::queue<BasicBlock*> worklist;
+    unsigned int changes = 0;
 
     //FIXME: is there a way to simply traverse all cfg edges instead of doing a BFS?
     worklist.push(&function.getEntryBlock());
-    while (!worklist.empty())
+    while (!worklist.empty() && changes != function.size())
     {
         BasicBlock* block = worklist.front();
         worklist.pop();
@@ -203,7 +247,10 @@ void ReachingDef::constructInSets(Function& function)
         GenSetType& genSet = dup->getGenSet();
         OutSetType& outSet = dup->getOutSet();
         std::set_union(genSet.begin(), genSet.end(), tempSet.begin(), tempSet.end(), inserter(outSet, outSet.begin()));
-   
+        
+        std::cout << "gen set: " << genSet.size() << std::endl;
+        std::cout << "out set: " << outSet.size() << std::endl;
+
         for (succ_iterator succ = succ_begin(block); succ != succ_end(block); ++succ)
         {
             BasicBlockDup* succDup = m_basicBlockDupMap[*succ];
@@ -211,25 +258,27 @@ void ReachingDef::constructInSets(Function& function)
             unsigned int oldInSize = succInSet.size();
     
             succInSet.insert(outSet.begin(), outSet.end());
-            if (succInSet.size() != oldInSize)
+            std::cout << "succ in set: " << succInSet.size() << std::endl;
+            if (succInSet.size() != oldInSize || changes != function.size())
             {
                 worklist.push(*succ);
+                ++changes;
             }
         }
     }
+*/
 }
 
-void ReachingDef::findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, Instruction* inst)
+void ReachingDef::findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst)
 {
     InSetType& inSet = blockDup->getInSet();
-    std::cout << "inset size: " << inSet.size() << std::endl;
     for (InSetType::iterator i = inSet.begin(); i != inSet.end(); ++i)
     {
         StoreInst *storeInst = dyn_cast<StoreInst>(*i);
         assert(storeInst != NULL && "not a store instruction!");
         if (coreOperand == findCoreOperand(storeInst->getPointerOperand()))
         {
-            m_udChain[inst].push_back(storeInst);
+            m_udChain[loadInst].push_back(storeInst);
         }
     }
 }
@@ -244,7 +293,7 @@ void ReachingDef::constructUDChain(Function& function)
             BasicBlockDup* blockDup = m_basicBlockDupMap[inst.getParent()];
             
             Value* coreOperand = findCoreOperand(loadInst->getPointerOperand());
-            findDefinitions(coreOperand, blockDup, &inst);
+            findDefinitions(coreOperand, blockDup, loadInst);
         }
     }
 }
@@ -254,7 +303,6 @@ void ReachingDef::constructUDChain(Function& function)
 bool ReachingDef::runOnFunction(Function& function)
 {
     clear();
-    std::cout << "starting!\n";
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
         BasicBlock& block = *i;
@@ -266,7 +314,6 @@ bool ReachingDef::runOnFunction(Function& function)
 
     constructInSets(function);
     constructUDChain(function);
-    std::cout << "size " << m_udChain.size() << std::endl;
     printa();
 
     return false;
@@ -276,11 +323,11 @@ void ReachingDef::printa(void)
 {
     for (UDChainMapType::iterator i = m_udChain.begin(); i != m_udChain.end(); ++i)
     {
-        std::cout << "For " << *i->first << std::endl;
-        std::vector<Instruction*>& rd = i->second;
-        for (std::vector<Instruction*>::iterator j = rd.begin(); j != rd.end(); ++j)
+        std::cout << "For load from " << *findCoreOperand(i->first->getPointerOperand()) << " in " << *i->first << std::endl;
+        std::vector<StoreInst*>& rd = i->second;
+        for (std::vector<StoreInst*>::iterator j = rd.begin(); j != rd.end(); ++j)
         {
-            std::cout << "\t" << *j << std::endl;
+            std::cout << "\t" << **j << std::endl;
         }
     }
 }

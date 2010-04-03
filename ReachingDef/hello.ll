@@ -6,32 +6,47 @@ target triple = "i386-pc-linux-gnu"
 
 define i32 @main() nounwind {
 entry:
-	%structure = alloca %struct.B		; <%struct.B*> [#uses=2]
+	%d = alloca [10 x i32]		; <[10 x i32]*> [#uses=6]
 	%"alloca point" = bitcast i32 0 to i32		; <i32> [#uses=0]
-	br label %bb1
+	%0 = getelementptr [10 x i32]* %d, i32 0, i32 0		; <i32*> [#uses=1]
+	store i32 3, i32* %0, align 4
+	%1 = getelementptr [10 x i32]* %d, i32 0, i32 2		; <i32*> [#uses=1]
+	store i32 13, i32* %1, align 4
+	br label %bb4
 
-bb:		; preds = %bb1
-	%0 = getelementptr %struct.B* %structure, i32 0, i32 0		; <%struct.A*> [#uses=1]
-	%1 = getelementptr %struct.A* %0, i32 0, i32 1		; <double*> [#uses=1]
-	store double 2.400000e-03, double* %1, align 4
-	%2 = getelementptr %struct.B* %structure, i32 0, i32 0		; <%struct.A*> [#uses=1]
-	%3 = getelementptr %struct.A* %2, i32 0, i32 1		; <double*> [#uses=1]
-	%4 = load double* %3, align 4		; <double> [#uses=1]
-	%5 = add double %4, %c.0		; <double> [#uses=1]
-	%6 = add i32 %i.0, 1		; <i32> [#uses=1]
-	%7 = add i32 %j.0, 1		; <i32> [#uses=1]
-	br label %bb1
+bb:		; preds = %bb4
+	%2 = getelementptr [10 x i32]* %d, i32 0, i32 %i.0		; <i32*> [#uses=1]
+	%3 = load i32* %2, align 4		; <i32> [#uses=1]
+	%4 = add i32 %3, 10		; <i32> [#uses=1]
+	%5 = getelementptr [10 x i32]* %d, i32 0, i32 %i.0		; <i32*> [#uses=1]
+	store i32 %4, i32* %5, align 4
+	%6 = icmp sle i32 %i.0, 7		; <i1> [#uses=1]
+	br i1 %6, label %bb1, label %bb2
 
-bb1:		; preds = %bb, %entry
-	%c.0 = phi double [ 0.000000e+00, %entry ], [ %5, %bb ]		; <double> [#uses=1]
-	%j.0 = phi i32 [ 0, %entry ], [ %7, %bb ]		; <i32> [#uses=1]
-	%i.0 = phi i32 [ 9, %entry ], [ %6, %bb ]		; <i32> [#uses=2]
-	%8 = icmp sle i32 %i.0, 9		; <i1> [#uses=1]
-	br i1 %8, label %bb, label %bb2
+bb1:		; preds = %bb
+	%7 = getelementptr [10 x i32]* %d, i32 0, i32 1		; <i32*> [#uses=1]
+	store i32 10, i32* %7, align 4
+	br label %bb3
 
-bb2:		; preds = %bb1
+bb2:		; preds = %bb
+	%8 = getelementptr [10 x i32]* %d, i32 0, i32 9		; <i32*> [#uses=1]
+	store i32 9, i32* %8, align 4
+	br label %bb3
+
+bb3:		; preds = %bb2, %bb1
+	%9 = add i32 %i.0, 1		; <i32> [#uses=1]
+	%10 = add i32 %j.0, 1		; <i32> [#uses=1]
+	br label %bb4
+
+bb4:		; preds = %bb3, %entry
+	%j.0 = phi i32 [ 0, %entry ], [ %10, %bb3 ]		; <i32> [#uses=1]
+	%i.0 = phi i32 [ 9, %entry ], [ %9, %bb3 ]		; <i32> [#uses=5]
+	%11 = icmp sle i32 %i.0, 9		; <i1> [#uses=1]
+	br i1 %11, label %bb, label %bb5
+
+bb5:		; preds = %bb4
 	br label %return
 
-return:		; preds = %bb2
+return:		; preds = %bb5
 	ret i32 0
 }
