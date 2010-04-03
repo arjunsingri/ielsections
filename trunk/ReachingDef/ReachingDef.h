@@ -77,8 +77,8 @@ class ReachingDef : public FunctionPass
     typedef std::map<Value*, std::vector<Instruction*> > AssignmentMapType;
     typedef std::map<BasicBlock*, BasicBlockDup*> BasicBlockDupMapType;
     typedef std::pair<BasicBlock*, BasicBlockDup*> BasicBlockDupElementType;
-    typedef std::pair<Instruction*, std::vector<Instruction*> > UDChainElementType;
-    typedef std::map<Instruction*, std::vector<Instruction*> > UDChainMapType;
+    typedef std::pair<LoadInst*, std::vector<StoreInst*> > UDChainElementType;
+    typedef std::map<LoadInst*, std::vector<StoreInst*> > UDChainMapType;
 
     AssignmentMapType m_assignmentMap;
     KilledMapType m_killedMap;
@@ -99,7 +99,7 @@ class ReachingDef : public FunctionPass
         void constructInSets(Function& function);
         void constructUDChain(Function& function);
 
-        void findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, Instruction* inst);
+        void findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst);
 
         // Compute control dependences for all blocks in this function
         virtual bool runOnFunction(Function& F);
