@@ -1,6 +1,6 @@
 LEVEL = ../../../
 
-LIBRARYNAME = findiel
+LIBRARYNAME = iel
 
 LOADABLE_MODULE = 1
 

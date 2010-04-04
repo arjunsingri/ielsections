@@ -48,6 +48,7 @@ class BasicBlockDup
         KillSetType& getKillSet(void) { return m_killSet; }
 
         InSetType& getInSet(void) { return m_inSet; }
+        void setInSet(InSetType& inSet) { m_inSet = inSet; }
         OutSetType& getOutSet(void) { return m_outSet; }
 
     private:

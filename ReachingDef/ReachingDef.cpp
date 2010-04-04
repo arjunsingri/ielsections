@@ -16,6 +16,7 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Instructions.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/Type.h"
 #include "ReachingDef.h"
 #include <queue>
 #include <list>
@@ -61,6 +62,8 @@ ReachingDef::~ReachingDef(void)
 //pointerOperand would be the operand for either a store inst or a load inst
 Value* ReachingDef::findCoreOperand(Value* pointerOperand)
 {
+    assert(pointerOperand != NULL && "target of store inst obtained incorrectly");
+
     Value* coreOperand = NULL;
 
     if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(pointerOperand))
@@ -75,7 +78,8 @@ Value* ReachingDef::findCoreOperand(Value* pointerOperand)
         } while (operand != NULL);
 
         getElementPtrInst = previous;
-
+        coreOperand = getElementPtrInst->getPointerOperand();
+/*
         const Type* elementType = getElementPtrInst->getPointerOperandType()->getElementType();
 
         if (elementType->getTypeID() == Type::StructTyID)
@@ -86,6 +90,11 @@ Value* ReachingDef::findCoreOperand(Value* pointerOperand)
         {
             coreOperand = getElementPtrInst->getPointerOperand();
         }
+*/
+    }
+    else
+    {
+        coreOperand = pointerOperand;
     }
     
     return coreOperand;
@@ -95,6 +104,9 @@ void ReachingDef::findDownwardsExposed(BasicBlock* block)
 {
     BasicBlockDup* currentDup = new BasicBlockDup(block);
     m_basicBlockDupMap.insert(BasicBlockDupElementType(block, currentDup));
+                
+    DownwardsExposedMapType& currentDownwardsExposedMap = currentDup->getDownwardsExposedMap();
+    LastWriteMapType& currentLastWriteMap = currentDup->getLastWriteMap();
  
     for (BasicBlock::iterator i = block->begin(); i != block->end(); ++i)
     {
@@ -103,35 +115,37 @@ void ReachingDef::findDownwardsExposed(BasicBlock* block)
         if (StoreInst* storeInst = dyn_cast<StoreInst>(&inst))
         {
             Value* coreOperand = findCoreOperand(storeInst->getPointerOperand());
+            Type::TypeID typeID = coreOperand->getType()->getTypeID();
 
-            AssignmentMapType::iterator where = m_assignmentMap.find(coreOperand);
-            if (where != m_assignmentMap.end())
+            if (typeID != Type::StructTyID && typeID != Type::ArrayTyID)
             {
-                std::vector<Instruction*>& killed = m_assignmentMap[coreOperand];
-                for (std::vector<Instruction*>::iterator j = killed.begin(); j != killed.end(); ++j)
+                AssignmentMapType::iterator where = m_assignmentMap.find(coreOperand);
+                if (where != m_assignmentMap.end())
                 {
-                    //TODO: killed map can be maintained as a vector of sets, each value in a set kills all other values
-                    //search becomes harder though
-                    m_killedMap[*j].push_back(storeInst);
-                    m_killedMap[storeInst].push_back(*j);
+                    std::vector<Instruction*>& killed = m_assignmentMap[coreOperand];
+                    for (std::vector<Instruction*>::iterator j = killed.begin(); j != killed.end(); ++j)
+                    {
+                        //TODO: killed map can be maintained as a vector of sets, each value in a set kills all other values
+                        //search becomes harder though
+                        m_killedMap[*j].push_back(storeInst);
+                        m_killedMap[storeInst].push_back(*j);
+                    }
+                    //std::cout << "may be killed " << *storeInst << std::endl;
                 }
-                //std::cout << "may be killed " << *storeInst << std::endl;
+                
+                m_assignmentMap[coreOperand].push_back(storeInst);
+
+                LastWriteMapType::iterator where2 = currentLastWriteMap.find(coreOperand);
+                if (where2 != currentLastWriteMap.end())
+                {
+                    //set the last instruction that was in the last write map to be not downwards exposed
+                    currentDownwardsExposedMap[currentLastWriteMap[coreOperand]] = false;
+                    //std::cout << "not downwards " << *currentLastWriteMap[coreOperand] << std::endl;
+                }
+
+                currentLastWriteMap[coreOperand] = storeInst;
             }
 
-            m_assignmentMap[coreOperand].push_back(storeInst);
- 
-            LastWriteMapType& currentLastWriteMap = currentDup->getLastWriteMap();
-            DownwardsExposedMapType& currentDownwardsExposedMap = currentDup->getDownwardsExposedMap();
-
-            LastWriteMapType::iterator where2 = currentLastWriteMap.find(coreOperand);
-            if (where2 != currentLastWriteMap.end())
-            {
-                //set the last instruction that was in the last write map to be not downwards exposed
-                currentDownwardsExposedMap[currentLastWriteMap[coreOperand]] = false;
-                //std::cout << "not downwards " << *currentLastWriteMap[coreOperand] << std::endl;
-            }
-
-            currentLastWriteMap[coreOperand] = storeInst;
             currentDownwardsExposedMap[storeInst] = true; //downwards exposed until we find the next write for coreOperand
         }
     }
@@ -173,7 +187,6 @@ void ReachingDef::constructKillSet(BasicBlock* block)
         if (where != m_killedMap.end())
         {
             basicBlockDup->addToKillSet(where->second);
-            //std::cout << "killed " << inst << std::endl;
         }
     }
 }
@@ -182,7 +195,10 @@ void ReachingDef::constructInSets(Function& function)
 {
     bool hasChanged;
     int iter = 0;
-
+        
+    BasicBlockDup* entryDup = m_basicBlockDupMap[&function.getEntryBlock()];
+    entryDup->setInSet(entryDup->getGenSet());
+    
     do
     {
         hasChanged = false;
@@ -202,17 +218,17 @@ void ReachingDef::constructInSets(Function& function)
             }
 
             KillSetType& killSet = dup->getKillSet();
-
             InSetType tempSet;
 
-            //std::set_difference(inSet.begin(), inSet.end(), killSet.begin(), killSet.end(), inserter(tempSet, tempSet.begin()));
+            std::set_difference(inSet.begin(), inSet.end(), killSet.begin(), killSet.end(), inserter(tempSet, tempSet.begin()));
 
             OutSetType& outSet = dup->getOutSet();
             size_t oldOutSetSize = outSet.size();
 
             GenSetType& genSet = dup->getGenSet();
-            //std::set_union(genSet.begin(), genSet.end(), tempSet.begin(), tempSet.end(), inserter(outSet, outSet.begin()));
-            std::set_union(genSet.begin(), genSet.end(), inSet.begin(), inSet.end(), inserter(outSet, outSet.begin()));
+            
+            std::set_union(genSet.begin(), genSet.end(), tempSet.begin(), tempSet.end(), inserter(outSet, outSet.begin()));
+            
             if (outSet.size() != oldOutSetSize)
             {
                 hasChanged = true;
@@ -222,56 +238,12 @@ void ReachingDef::constructInSets(Function& function)
         //std::cout << iter << std::endl;
         ++iter;
     } while (hasChanged);
-
-/*
-    std::queue<BasicBlock*> worklist;
-    unsigned int changes = 0;
-
-    //FIXME: is there a way to simply traverse all cfg edges instead of doing a BFS?
-    worklist.push(&function.getEntryBlock());
-    while (!worklist.empty() && changes != function.size())
-    {
-        BasicBlock* block = worklist.front();
-        worklist.pop();
-
-        BasicBlockDup* dup = m_basicBlockDupMap[block];
-        assert(dup != NULL);
-
-        InSetType& inSet = dup->getInSet();
-        KillSetType& killSet = dup->getKillSet();
-        InSetType tempSet;
-
-        std::set_difference(inSet.begin(), inSet.end(), killSet.begin(), killSet.end(), inserter(tempSet, tempSet.begin()));
-        std::cout << "tempSet: " << tempSet.size() << std::endl;
-
-        GenSetType& genSet = dup->getGenSet();
-        OutSetType& outSet = dup->getOutSet();
-        std::set_union(genSet.begin(), genSet.end(), tempSet.begin(), tempSet.end(), inserter(outSet, outSet.begin()));
-        
-        std::cout << "gen set: " << genSet.size() << std::endl;
-        std::cout << "out set: " << outSet.size() << std::endl;
-
-        for (succ_iterator succ = succ_begin(block); succ != succ_end(block); ++succ)
-        {
-            BasicBlockDup* succDup = m_basicBlockDupMap[*succ];
-            InSetType& succInSet = succDup->getInSet();
-            unsigned int oldInSize = succInSet.size();
-    
-            succInSet.insert(outSet.begin(), outSet.end());
-            std::cout << "succ in set: " << succInSet.size() << std::endl;
-            if (succInSet.size() != oldInSize || changes != function.size())
-            {
-                worklist.push(*succ);
-                ++changes;
-            }
-        }
-    }
-*/
 }
 
 void ReachingDef::findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst)
 {
     InSetType& inSet = blockDup->getInSet();
+        
     for (InSetType::iterator i = inSet.begin(); i != inSet.end(); ++i)
     {
         StoreInst *storeInst = dyn_cast<StoreInst>(*i);
