@@ -1,5 +1,6 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "ReachingDef/ReachingDef.h"
 #include <string>
 #include <iostream>
 
@@ -28,22 +29,9 @@ class SILParameter
     Instruction* getInstruction(void) { return m_s; }
 
     Value* getValue(void) { return m_value; }
-    bool isValuePhiNode(void) { return m_isValuePhiNode; }
-    void setValuePhiNode(bool isPhiNode) { m_isValuePhiNode = isPhiNode; }
-
-    bool isValueArray(void) { return m_isValueArray; }
-    void setValueArray(bool isValueArray) { m_isValueArray = isValueArray; }
-   
-    //if m_value is not a phi node, then m_rd.size() iwill be atmost 1
-    void addRD(Value* value, BasicBlock* containingBlock);
-    std::vector<Value*> getRD(void) { return m_rd; }
-    std::vector<BasicBlock*> getRDBlocks(void) { return m_rdContainingBlocks; }
-
-    std::vector<Value*> getArrayDefinitions(void) { return m_arrayDefinitions; }
-    void setArrayDefinitions(std::vector<Value*>& arrayDefs, std::vector<BasicBlock*>& blocks);
-    std::vector<BasicBlock*> getArrayDefinitionBlocks(void) { return m_arrayDefinitionContainingBlocks; }
-
-    void setRD(std::vector<Value*> rd, std::vector<BasicBlock*> containingBlocks);
+    
+    void addRD(unsigned int i);
+    std::vector<unsigned int> getRD(void) { return m_rd; }
    
     void addCP(Instruction* inst) { m_cp.push_back(inst); }
     std::vector<Instruction*> getCP(void) { return m_cp; }
@@ -52,21 +40,31 @@ class SILParameter
     SILValue getSILValue(void) { assert(m_silValue != NotInitialized); return m_silValue; }
     void setSILValue(SILValue silValue) { m_silValue = silValue; }
 
+    void constructDefinitionList(ReachingDef* reachingDef);
+
+    unsigned int getNumDefinitions(void) { return m_definitions.size(); }
+    Value* getDefinition(unsigned int i) { return m_definitions[i]; }
+    BasicBlock* getDefinitionParent(unsigned int i) { return m_definitionParents[i]; }
+
+private:
+
+    void findDefinitions(PHINode* phiNode);
+    void findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& visited);
+
 private:
 
     Loop* m_beta;
     
     Value* m_value;
-    bool m_isValuePhiNode;
-    bool m_isValueArray;
     
     Instruction* m_s;
     SILValue m_silValue;
-    std::vector<Value*> m_rd;
-    std::vector<BasicBlock*> m_rdContainingBlocks;
-    std::vector<Value*> m_arrayDefinitions;
-    std::vector<BasicBlock*> m_arrayDefinitionContainingBlocks;
+
+    std::vector<unsigned int> m_rd;
     std::vector<Instruction*> m_cp;
+
+    std::vector<Value*> m_definitions;
+    std::vector<BasicBlock*> m_definitionParents;
 };
 
 typedef std::vector<SILParameter*> SILParameterList;
