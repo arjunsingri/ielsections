@@ -35,9 +35,6 @@ class IELSection
         Loop* getLoop(void) { return m_loop; }
         SILParameterList& getSILParameters(void) { return m_silParameters; }
 
-        std::pair<bool, bool> isInsideOutside(SILParameter *silParameter, 
-                std::vector<Value*> definitions, std::vector<BasicBlock*> definitionBlocks);
-
         void printIELSection(void);
         void print(void);
 

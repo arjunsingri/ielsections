@@ -4,6 +4,7 @@ using namespace llvm;
 
 SIL::SIL()
     :   LoopPass(&ID), 
+        m_currentReachingDef(NULL),
         m_id(0)
 {
 }
@@ -16,137 +17,43 @@ void SIL::runStep1(IELSection* ielSection)
     for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)
     {
         SILParameter* currentParameter = *i;
+        currentParameter->constructDefinitionList(m_currentReachingDef);
+        
+        //if (isa<GetElementPtrInst>(currentParameter->getValue())) continue;
 
-        if (currentParameter->isValueArray())
+        bool isInside = false, isOutside = false;
+
+        for (unsigned int j = 0; j < currentParameter->getNumDefinitions(); ++j)
         {
-            assert(false);
-            std::vector<Value*> arrayDefinitions = currentParameter->getArrayDefinitions();
-            std::vector<BasicBlock*> arrayDefinitionBlocks = currentParameter->getArrayDefinitionBlocks();
-
-            std::pair<bool, bool> insideOutside = ielSection->isInsideOutside(currentParameter, arrayDefinitions, arrayDefinitionBlocks);
-
-            if (insideOutside.first && insideOutside.second)
+            Loop* loop = ielSection->getLoop();
+            if (loop->contains(currentParameter->getDefinitionParent(j)))
             {
-                currentParameter->setSILValue(False);
+                currentParameter->addRD(j);
+                isInside = true;
             }
             else
             {
-                currentParameter->setSILValue(DontKnow);
+                isOutside = false;
             }
         }
-        else if (!currentParameter->isValuePhiNode())
+
+        if (isInside && isOutside)
         {
-            Instruction* valueAsInstruction = dyn_cast<Instruction>(currentParameter->getValue());
-            assert(valueAsInstruction != NULL);
-
-            //check if definition of v is inside the loop
-            BasicBlock* parent = valueAsInstruction->getParent();
-            if (ielSection->getLoop()->contains(parent))
-            {
-                //construct set RD for use in step 2
-                currentParameter->addRD(valueAsInstruction, parent);
-            }
-
+            currentParameter->setSILValue(False);
+        }
+        else
+        {
             currentParameter->setSILValue(DontKnow);
         }
-        else
-        {
-            PHINode* phiNode = dyn_cast<PHINode>(currentParameter->getValue());
-            assert(phiNode != NULL);
-
-            //get all definitions reaching this phi node; have to consider the cases where phi node is made up of other phi nodes
-
-            std::vector<BasicBlock*> phiDefinitionsBlock;
-            std::vector<Value*> phiDefinitions;
-            std::vector<PHINode*> phiNodes;
-
-            getPhiDefinitions(phiNode, phiDefinitionsBlock, phiDefinitions, phiNodes);
-            assert(phiDefinitionsBlock.size() == phiDefinitions.size());
-
-            std::pair<bool, bool> insideOutside = ielSection->isInsideOutside(currentParameter, phiDefinitions, phiDefinitionsBlock);
-            if (insideOutside.first && insideOutside.second)
-            {
-                currentParameter->setSILValue(False);
-            }
-            else
-            {
-                currentParameter->setSILValue(DontKnow);
-            }
-        }
-
-        /*
-           bool fromInside = false;
-           bool fromOutside = false;
-
-           for (size_t j = 0; j < udDefinitionsBlock.size(); ++j)
-           {
-           if (ielSection->getLoop()->contains(udDefinitionsBlock[j]))
-           {
-           fromInside = true;
-           currentParameter->addRD(udDefinitions[j], udDefinitionsBlock[j]);
-           }
-           else
-           {
-           fromOutside = true;
-           }
-           }
-
-           if (fromInside && fromOutside)
-           {
-           currentParameter->setSILValue(False);
-           }
-           else
-           {
-           currentParameter->setSILValue(DontKnow);
-           }
-         */
     }
-}
-
-void SIL::getPhiDefinitions(PHINode* phiNode, std::vector<BasicBlock*>& udChainBlock, std::vector<Value*>& udChainInst, std::vector<PHINode*> phiNodes)
-{
-    //std::cout << "enter" << std::endl;
-    phiNodes.push_back(phiNode);
-    unsigned int incomingSize = phiNode->getNumIncomingValues();
-    for (unsigned int i = 0; i < incomingSize; ++i)
-    {
-        BasicBlock* block = phiNode->getIncomingBlock(i);
-        Value* value = phiNode->getIncomingValue(i);
-        if (isa<UndefValue>(value))
-        {
-            continue;
-        }
-
-        assert(!isa<BasicBlock>(value));
-
-        if (PHINode* valueAsPhiNode = dyn_cast<PHINode>(value))
-        {
-            std::vector<PHINode*>::iterator where = std::find(phiNodes.begin(), phiNodes.end(), valueAsPhiNode);
-            if (where == phiNodes.end())
-            {
-                //std::cout << *valueAsPhiNode << std::endl;
-                getPhiDefinitions(valueAsPhiNode, udChainBlock, udChainInst, phiNodes);
-            }
-            else
-            {
-                //std::cout << "skipping" << std::endl;
-            }
-        }
-        else
-        {
-            udChainBlock.push_back(block);
-            udChainInst.push_back(value);
-        }
-    }
-    //std::cout << "leave" << std::endl;
 }
 
 void SIL::computeCP(IELSection* ielSection, SILParameter* silParameter, ControlDependence& cd)
 {
     assert(silParameter->getLoop() == ielSection->getLoop());
+
     Loop* loop = silParameter->getLoop();
-    const std::vector<Instruction*>& deps = 
-        cd.getControlDependenceInstructions(silParameter->getInstruction());
+    const std::vector<Instruction*>& deps = cd.getControlDependenceInstructions(silParameter->getInstruction());
 
     for (std::vector<Instruction*>::const_iterator j = deps.begin(); j != deps.end(); ++j)
     {
@@ -162,19 +69,18 @@ void SIL::computeCP(IELSection* ielSection, SILParameter* silParameter, ControlD
 //return true if the SI/L value for this parameter changes from DontKnow to False
 bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
 {
-    const std::vector<Value*>& rd = silParameter->getRD();
-    for (std::vector<Value*>::const_iterator i = rd.begin(); i != rd.end(); ++i)
+    const std::vector<unsigned int>& rd = silParameter->getRD();
+    for (unsigned int i = 0; i < rd.size(); ++i)
     {
         Instruction* inst;
-        if ((inst = dyn_cast<Instruction>(*i)) == NULL)
+        if ((inst = dyn_cast<Instruction>(silParameter->getDefinition(i))) == NULL)
         {
             continue;
         }
 
         for (User::op_iterator j = inst->op_begin(); j != inst->op_end(); ++j)
         {
-            if (isa<Constant>(*j) || !isa<Instruction>(*j))
-                continue;
+            if (isa<Constant>(*j) || !isa<Instruction>(*j)) continue;
 
             //this can never return NULL as all *j that are considered here are inside the loop 
             //and we have constructed an SILParameter object for all variables used inside the loop
@@ -293,71 +199,14 @@ IELSection* SIL::addIELSection(Loop* loop)
                 continue;
             }
 
-            if (StoreInst* storeInst = dyn_cast<StoreInst>(instr))
-            {
-                Value* storeOperand = storeInst->getPointerOperand();
-                BasicBlock::iterator prev = instr;
-                --prev;
-                if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(prev))
-                {
-                    const Type* elementType = getElementPtrInst->getPointerOperandType()->getElementType();
-                    if (elementType->getTypeID() == Type::ArrayTyID)
-                    {
-                        if (storeOperand == getElementPtrInst)
-                        {
-                            //std::cout << "array store found! discarding..." << std::endl;
-                            //std::cout << *getElementPtrInst << std::endl;
-                            delete currentIELSection;
-                            return NULL;
-                        }
-                    }
-                }
-            }
-            /*
-               if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(instr))
-               {
-               Value* operand = getElementPtrInst->getPointerOperand();
-               const Type* elementType = getElementPtrInst->getPointerOperandType()->getElementType();
-
-               if (elementType->getTypeID() == Type::ArrayTyID)
-               {
-               BasicBlock::iterator next = instr;
-               if (StoreInst* storeInst = dyn_cast<StoreInst>(++next))
-               {
-               Value* storeOperand = storeInst->getPointerOperand();
-               if (storeOperand == getElementPtrInst)
-               {
-               m_toArray[storeInst] = operand;
-               m_arrayDefinitions[operand].push_back(storeInst);
-               m_arrayDefinitionsBlocks[operand].push_back(storeInst->getParent());
-               std::cout << "store op: " << *operand << std::endl;
-               }
-               }
-               else if (LoadInst* loadInst = dyn_cast<LoadInst>(next))
-               {
-               Value* loadOperand = loadInst->getPointerOperand();
-               if (loadOperand == getElementPtrInst)
-               {
-               m_toArray[loadInst] = operand;
-               }
-               }
-               else
-               {
-               std::cout << *instr << std::endl << *next << std::endl;
-               assert(0 && "no load or store!");
-               }
-               }
-               }
-             */
             for (User::op_iterator def = instr->op_begin(); def != instr->op_end(); ++def)
             {
                 Value* v = def->get();
-                if (isa<BasicBlock>(v))
+                if (isa<BasicBlock>(v) || !isa<Instruction>(v))
                 {
                     continue;
                 }
-
-                if (isa<Constant>(v))
+                else if (isa<Constant>(v))
                 {
                     //ignore all loops containing function calls as we don't how to handle them
                     if (isa<Function>(v))
@@ -370,31 +219,7 @@ IELSection* SIL::addIELSection(Loop* loop)
                     continue;
                 }
 
-                if (!isa<Instruction>(v))
-                {
-                    //std::cout << "not inst: " << *v << std::endl;
-                    continue;
-                }
-
-                if (isa<GetElementPtrInst>(v))
-                {
-                    continue;
-                }
-
                 SILParameter* silParameter = new SILParameter(loop, v, instr);
-
-                if (isa<PHINode>(v))
-                {
-                    silParameter->setValuePhiNode(true);
-                }
-
-                std::map<Value*, Value*>::iterator where = m_toArray.find(v);
-                if (where != m_toArray.end())
-                {
-                    silParameter->setArrayDefinitions(m_arrayDefinitions[where->second], m_arrayDefinitionsBlocks[where->second]);
-                    silParameter->setValueArray(true);
-                }
-
                 currentIELSection->addSILParameter(silParameter);
             }
         }
@@ -405,7 +230,7 @@ IELSection* SIL::addIELSection(Loop* loop)
 
 bool SIL::checkIELSection(IELSection* ielSection)
 {
-    Loop* loop = ielSection->getLoop();
+    //Loop* loop = ielSection->getLoop();
     bool isIELSection = true;
     std::vector<BasicBlock*> blocks = ielSection->getBlocks();
     //std::cout << "----Loop header: " << loop->getHeader()->getName() << " blocks: " << blocks.size() << std::endl;
@@ -464,6 +289,9 @@ bool SIL::checkIELSection(IELSection* ielSection)
 
 bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
 {
+    m_currentReachingDef = &getAnalysis<ReachingDef>();
+    assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
+
     if (IELSection* ielSection = addIELSection(loop))
     {
         runStep1(ielSection);
@@ -501,6 +329,7 @@ void SIL::getAnalysisUsage(AnalysisUsage& AU) const
     AU.setPreservesAll();
     AU.addRequired<LoopInfo>();
     AU.addRequired<ControlDependence>();
+    AU.addRequired<ReachingDef>();
 }
 
 char SIL::ID = 0;

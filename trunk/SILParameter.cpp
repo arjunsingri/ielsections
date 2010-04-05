@@ -7,11 +7,72 @@ const char* MapEnum2Str[] = {"NotInitialized", "True", "False", "DontKnow"};
 SILParameter::SILParameter(Loop* beta, Value* value, Instruction* s)
     :   m_beta(beta), 
         m_value(value), 
-        m_isValuePhiNode(false), 
-        m_isValueArray(false), 
         m_s(s), 
         m_silValue(NotInitialized)
 {
+}
+
+void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
+{
+    assert(reachingDef != NULL);
+
+    if (PHINode* phiNode = dyn_cast<PHINode>(m_value))
+    {
+        findDefinitions(phiNode);
+    }
+    else if (LoadInst* loadInst = dyn_cast<LoadInst>(m_value))
+    {
+        std::vector<StoreInst*>& stores = reachingDef->getDefinitions(loadInst);
+
+        //TODO:is this really required?
+        m_definitions.push_back(m_value);
+        m_definitionParents.push_back(loadInst->getParent());
+
+        for (std::vector<StoreInst*>::iterator i = stores.begin(); i != stores.end(); ++i)
+        {
+            m_definitions.push_back(*i);
+            m_definitionParents.push_back((*i)->getParent());
+        }
+    }
+    else
+    {
+        m_definitions.push_back(m_value);
+        m_definitionParents.push_back(dyn_cast<Instruction>(m_value)->getParent());
+    }
+}
+
+void SILParameter::findDefinitions(PHINode* phiNode)
+{
+    std::map<PHINode*, bool> visited;
+
+    findDefinitions(phiNode, visited);
+}
+
+void SILParameter::findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& visited)
+{
+    visited[phiNode] = true;
+    unsigned int incomingSize = phiNode->getNumIncomingValues();
+    for (unsigned int i = 0; i < incomingSize; ++i)
+    {
+        BasicBlock* valueParent = phiNode->getIncomingBlock(i);
+        Value* value = phiNode->getIncomingValue(i);
+
+        if (isa<UndefValue>(value)) continue;
+        assert(!isa<BasicBlock>(value));
+
+        if (PHINode* valueAsPhiNode = dyn_cast<PHINode>(value))
+        {
+            if (visited.find(valueAsPhiNode) == visited.end())
+            {
+                findDefinitions(phiNode, visited);
+            }
+        }
+        else
+        {
+            m_definitions.push_back(value);
+            m_definitionParents.push_back(valueParent);
+        }
+    }
 }
 
 void SILParameter::printSILValue(void)
@@ -40,31 +101,8 @@ void SILParameter::printSILValue(void)
 }
 
    //if m_value is not a phi node, then m_rd.size() iwill be atmost 1
-void SILParameter::addRD(Value* value, BasicBlock* containingBlock)
-{ 
-    m_rd.push_back(value);
-    m_rdContainingBlocks.push_back(containingBlock);
-}
-
-void SILParameter::setArrayDefinitions(std::vector<Value*>& arrayDefs, std::vector<BasicBlock*>& blocks)
+void SILParameter::addRD(unsigned int i)
 {
-    m_arrayDefinitions = arrayDefs;
-    m_arrayDefinitionContainingBlocks = blocks;
-}
-
-#if 0
-    void setRD(std::vector<std::pair<Value*, BasicBlock*> > defs)
-    {
-        for (std::vector<std::pair<Value*, BasicBlock*> >::iterator i = defs.begin(); i != defs.end(); ++i)
-        {
-            m_rd.push_back((*i).first);
-            m_rdContainingBlocks.push_back((*i).second);
-        }
-    }
-#endif
-void SILParameter::setRD(std::vector<Value*> rd, std::vector<BasicBlock*> containingBlocks)
-{
-    m_rd = rd;
-    m_rdContainingBlocks = containingBlocks;
+    m_rd.push_back(i);
 }
 

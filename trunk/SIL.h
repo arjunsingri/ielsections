@@ -2,6 +2,7 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/ControlDependence.h"
+#include "ReachingDef/ReachingDef.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Type.h"
 #include "IELSection.h"
@@ -19,6 +20,7 @@ class SIL : public LoopPass
     std::map<Value*, Value*> m_toArray;
     std::map<Value*, std::vector<Value*> >  m_arrayDefinitions;
     std::map<Value*, std::vector<BasicBlock*> > m_arrayDefinitionsBlocks;
+    ReachingDef* m_currentReachingDef;
     int m_id;
 
     public:

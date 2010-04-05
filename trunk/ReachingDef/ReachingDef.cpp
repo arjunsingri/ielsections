@@ -36,20 +36,13 @@ C("rd", "compute reaching definitions for structures and arrays");
 //===----------------------------------------------------------------------===//
 // ReachingDef Implementation
 //===----------------------------------------------------------------------===//
-
-void ReachingDef::clear(void)
-{
-    m_assignmentMap.clear();
-    m_killedMap.clear();
-    m_udChain.clear();
-
-    for (BasicBlockDupMapType::iterator i = m_basicBlockDupMap.begin(); i != m_basicBlockDupMap.end(); ++i)
-    {
-        free((*i).second);
-    }
-
-    m_basicBlockDupMap.clear();
-}
+        
+ReachingDef::ReachingDef() 
+    :   FunctionPass(&ID), 
+        m_previousFunction(NULL), 
+        m_currentFunction(NULL)
+        //m_udChain(NULL)
+{}
 
 ReachingDef::~ReachingDef(void)
 {
@@ -79,18 +72,6 @@ Value* ReachingDef::findCoreOperand(Value* pointerOperand)
 
         getElementPtrInst = previous;
         coreOperand = getElementPtrInst->getPointerOperand();
-/*
-        const Type* elementType = getElementPtrInst->getPointerOperandType()->getElementType();
-
-        if (elementType->getTypeID() == Type::StructTyID)
-        {
-            coreOperand = getElementPtrInst->getPointerOperand();
-        }
-        else if (elementType->getTypeID() == Type::ArrayTyID)
-        {
-            coreOperand = getElementPtrInst->getPointerOperand();
-        }
-*/
     }
     else
     {
@@ -103,7 +84,7 @@ Value* ReachingDef::findCoreOperand(Value* pointerOperand)
 void ReachingDef::findDownwardsExposed(BasicBlock* block)
 {
     BasicBlockDup* currentDup = new BasicBlockDup(block);
-    m_basicBlockDupMap.insert(BasicBlockDupElementType(block, currentDup));
+    m_basicBlockDupMap.insert(BasicBlockDupMapElementType(block, currentDup));
                 
     DownwardsExposedMapType& currentDownwardsExposedMap = currentDup->getDownwardsExposedMap();
     LastWriteMapType& currentLastWriteMap = currentDup->getLastWriteMap();
@@ -274,7 +255,7 @@ void ReachingDef::constructUDChain(Function& function)
 //
 bool ReachingDef::runOnFunction(Function& function)
 {
-    clear();
+    m_currentFunction = &function;
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
         BasicBlock& block = *i;
@@ -289,6 +270,13 @@ bool ReachingDef::runOnFunction(Function& function)
     printa();
 
     return false;
+}
+
+std::vector<StoreInst*>& ReachingDef::getDefinitions(LoadInst* loadInst)
+{
+    assert(m_currentFunction != NULL); 
+    
+    return m_udChain[loadInst];
 }
 
 void ReachingDef::printa(void)

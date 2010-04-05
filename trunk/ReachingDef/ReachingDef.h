@@ -77,21 +77,43 @@ class ReachingDef : public FunctionPass
     typedef std::map<Instruction*, std::vector<Instruction*> > KilledMapType;
     typedef std::map<Value*, std::vector<Instruction*> > AssignmentMapType;
     typedef std::map<BasicBlock*, BasicBlockDup*> BasicBlockDupMapType;
-    typedef std::pair<BasicBlock*, BasicBlockDup*> BasicBlockDupElementType;
-    typedef std::pair<LoadInst*, std::vector<StoreInst*> > UDChainElementType;
+    typedef std::pair<BasicBlock*, BasicBlockDup*> BasicBlockDupMapElementType;
+    typedef std::pair<LoadInst*, std::vector<StoreInst*> > UDChainMapElementType;
     typedef std::map<LoadInst*, std::vector<StoreInst*> > UDChainMapType;
+
+    //typedef std::map<Function*, UDChainMapType* > FunctionUDChainMapType;
+    //typedef std::pair<Function*, UDChainMapType* > FunctionUDChainMapElementType;
 
     AssignmentMapType m_assignmentMap;
     KilledMapType m_killedMap;
     BasicBlockDupMapType m_basicBlockDupMap;
+
+    Function* m_previousFunction;
+    Function* m_currentFunction;
+    
     UDChainMapType m_udChain;
 
     public:
         static char ID;
-        ReachingDef() : FunctionPass(&ID) {}
 
+        ReachingDef();
         ~ReachingDef();
 
+        // Compute control dependences for all blocks in this function
+        virtual bool runOnFunction(Function& F);
+
+        virtual void getAnalysisUsage(AnalysisUsage& AU) const;
+        std::vector<StoreInst*>& getDefinitions(LoadInst* loadInst); 
+        Function* getCurrentFunction(void) { return m_currentFunction; }
+
+        void printa(void);
+
+        //print - Show contents in human readable format...
+        //virtual void print(std::ostream& O, const Module* = 0) const;
+
+    private:
+        void clear();
+        
         Value* findCoreOperand(Value* pointerOperand);
         void findDownwardsExposed(BasicBlock* block);
         
@@ -102,18 +124,7 @@ class ReachingDef : public FunctionPass
 
         void findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst);
 
-        // Compute control dependences for all blocks in this function
-        virtual bool runOnFunction(Function& F);
 
-        virtual void getAnalysisUsage(AnalysisUsage& AU) const;
-
-        void printa(void);
-
-        //print - Show contents in human readable format...
-        //virtual void print(std::ostream& O, const Module* = 0) const;
-
-    private:
-        void clear();
 };
 
 #endif // LLVM_REACHINGDEF_H

@@ -35,31 +35,6 @@ SILParameter* IELSection::getSILParameter(Value* value)
     return NULL;
 }
 
-std::pair<bool, bool> IELSection::isInsideOutside(SILParameter *silParameter, 
-        std::vector<Value*> definitions, std::vector<BasicBlock*> definitionBlocks)
-{
-    bool fromInside = false;
-    bool fromOutside = false;
-
-    for (size_t j = 0; j < definitions.size(); ++j)
-    {
-        if (getLoop()->contains(definitionBlocks[j]))
-        {
-            //                    std::cout << "inside " << *instr << std::endl;
-            fromInside = true;
-            silParameter->addRD(definitions[j], definitionBlocks[j]);
-        }
-        else
-        {
-            //                  std::cout << "outside " << *instr << std::endl;
-            fromOutside = true;
-        }
-    }
-
-    //        std::cout << "\n\n";
-    return std::pair<bool, bool>(fromInside, fromOutside);
-}
-
 void IELSection::printIELSection(void)
 {
     if (m_isIELSection)
