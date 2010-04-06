@@ -2,8 +2,12 @@
 
 using namespace llvm;
 
+char SIL::ID = 0;
+static RegisterPass<SIL> sil("iel", "find all IE/L sections");
+
 SIL::SIL()
-    :   LoopPass(&ID), 
+    :   LoopPass(&ID),
+//        FunctionPass(&ID),
         m_currentReachingDef(NULL),
         m_id(0)
 {
@@ -288,7 +292,9 @@ bool SIL::checkIELSection(IELSection* ielSection)
 }
 
 bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
+//bool SIL::runOnFunction(Function& function)
 {
+//    Loop* loop;
     m_currentReachingDef = &getAnalysis<ReachingDef>();
     assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
 
@@ -327,10 +333,8 @@ void SIL::dump(void)
 void SIL::getAnalysisUsage(AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
-    AU.addRequired<LoopInfo>();
-    AU.addRequired<ControlDependence>();
+//    AU.addRequired<LoopInfo>();
     AU.addRequired<ReachingDef>();
+    AU.addRequired<ControlDependence>();
 }
 
-char SIL::ID = 0;
-RegisterPass<SIL> sil("iel", "find all IE/L sections");
