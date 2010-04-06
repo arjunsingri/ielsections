@@ -1,6 +1,6 @@
-LEVEL = ../../../../
+LEVEL = ../../../
 
-LIBRARYNAME = rd
+LIBRARYNAME = reaching-def
 
 LOADABLE_MODULE = 1
 

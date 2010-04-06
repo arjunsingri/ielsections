@@ -333,7 +333,6 @@ void SIL::dump(void)
 void SIL::getAnalysisUsage(AnalysisUsage& AU) const
 {
     AU.setPreservesAll();
-//    AU.addRequired<LoopInfo>();
     AU.addRequired<ReachingDef>();
     AU.addRequired<ControlDependence>();
 }

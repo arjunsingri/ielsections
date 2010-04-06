@@ -17,21 +17,21 @@
 #include "llvm/Instructions.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Type.h"
-#include "ReachingDef.h"
+#include "llvm/Analysis/ReachingDef.h"
 #include <queue>
 #include <list>
 #include <iostream>
 
 using namespace llvm;
 
+char ReachingDef::ID;
+static RegisterPass<ReachingDef> 
+C("reaching-def", "compute reaching definitions for structures and arrays");
+
 void BasicBlockDup::addToKillSet(std::vector<Instruction*>& killed)
 {
     m_killSet.insert(killed.begin(), killed.end());
 }
-
-char ReachingDef::ID;
-static RegisterPass<ReachingDef> 
-C("rd", "compute reaching definitions for structures and arrays");
 
 //===----------------------------------------------------------------------===//
 // ReachingDef Implementation
