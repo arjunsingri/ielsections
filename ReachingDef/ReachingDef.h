@@ -15,12 +15,13 @@
 #ifndef LLVM_REACHINGDEF_H
 #define LLVM_REACHINGDEF_H
 
-#include "llvm/Pass.h"
-#include "llvm/BasicBlock.h"
+//#include "llvm/Pass.h"
+//#include "llvm/BasicBlock.h"
 #include <vector>
 #include <map>
 
-using namespace llvm;
+namespace llvm
+{
 
 typedef std::pair<Instruction*, bool> DownwardsExposedElementType;
 typedef std::map<Instruction*, bool> DownwardsExposedMapType;
@@ -126,6 +127,7 @@ class ReachingDef : public FunctionPass
 
 
 };
+}
 
 #endif // LLVM_REACHINGDEF_H
 
