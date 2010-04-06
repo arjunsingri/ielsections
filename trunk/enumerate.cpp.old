@@ -1,0 +1,98 @@
+#include <iostream>
+#include <list>
+#include <string>
+#include "llvm/Pass.h"
+#include "llvm/Function.h"
+#include "llvm/Support/InstIterator.h"
+#include "llvm/Analysis/LoopPass.h"
+
+using namespace llvm;
+
+struct SILParameter
+{
+    SILParameter(Loop* beta, Value* v, Instruction* s)
+        : m_beta(beta), m_v(v), m_s(s)
+    {
+    }
+
+    Loop* m_beta;
+    Value* m_v;
+    Instruction* m_s;
+};
+
+class SIL : public FunctionPass
+{
+    typedef std::list<SILParameter*> SILParameterList;
+
+    std::map<Loop*, SILParameterList > m_loopToSILParameterListMap;
+
+    std::string m_currentFunction;
+
+    public:
+        static char ID;
+        
+        SIL() : FunctionPass(&ID)
+        {
+        }
+
+        virtual bool runOnFunction(Function &f)
+        {
+            m_currentFunction = f.getName();
+
+            m_loopToSILParameterListMap.clear();
+
+            LoopInfo& loopInfo = getAnalysis<LoopInfo>();
+
+            for (inst_iterator i = inst_begin(f); i != inst_end(f); ++i)
+            {
+                Instruction& current_instruction = *i;
+                const BasicBlock* parentBlock = current_instruction.getParent();
+                Loop* loop = loopInfo.getLoopFor(parentBlock);
+           
+                while (loop != NULL)
+                {
+                    SILParameterList& currentList = m_loopToSILParameterListMap[loop];
+
+                    for (User::op_iterator j = current_instruction.op_begin(); j != current_instruction.op_end(); ++j)
+                    {
+                        Value* v = j->get();
+                        currentList.push_back(new SILParameter(loop, v, &current_instruction));
+                    }
+
+                    loop = loop->getParentLoop();
+                }
+            }
+
+            dump();
+
+            return false;
+        }
+
+        void dump(void)
+        {
+            std::cout << "===" << m_currentFunction << "===" << std::endl;
+
+            for (std::map<Loop*, SILParameterList>::iterator i = m_loopToSILParameterListMap.begin();
+                    i != m_loopToSILParameterListMap.end(); ++i)
+            {
+                Loop* loop = i->first;
+                std::cout << "Loop header: " << loop->getHeader()->getName() << "\n\n";
+                for (SILParameterList::iterator j = i->second.begin(); j != i->second.end(); ++j)
+                {
+                    SILParameter* par = *j;
+                    std::cout << "\t" << "Value:       " << *(par->m_v) << "\tInstruction: " << *(par->m_s) << std::endl;
+                    std::cout << "\t------------\n";
+                }
+            }
+        }
+
+        virtual void getAnalysisUsage(AnalysisUsage& AU) const
+        {
+            AU.setPreservesAll();
+            AU.addRequired<LoopInfo>();
+        }
+};
+
+char SIL::ID = 0;
+RegisterPass<SIL> sil("silpars", "enumerate all the variable uses in all loop bodies");
+
