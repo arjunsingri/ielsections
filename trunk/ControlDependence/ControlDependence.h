@@ -17,6 +17,8 @@
 
 #include <vector>
 #include <map>
+#include <list>
+#include <queue>
 
 namespace llvm {
 
@@ -64,9 +66,9 @@ class ControlDependence : public FunctionPass {
         }
 
         //iterator for traversing the blocks on which P is control dependent
-        block_const_iterator dependence_begin(BasicBlock* P) { return ControlDependences[P].begin(); }
+        std::vector<BasicBlock*>::const_iterator dependence_begin(BasicBlock* P) { return ControlDependences[P].begin(); }
 
-        block_const_iterator dependence_end(BasicBlock* P) { return ControlDependences[P].end(); }
+        std::vector<BasicBlock*>::const_iterator dependence_end(BasicBlock* P) { return ControlDependences[P].end(); }
 
         // return the compare instructions on which instruction A is control dependent. This is basically the list
         // of all compare instructions in all the basic blocks on which the containing block of A is

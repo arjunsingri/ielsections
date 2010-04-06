@@ -15,14 +15,12 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ControlDependence.h"
-#include <queue>
-#include <list>
 
 using namespace llvm;
 
 char ControlDependence::ID;
 static RegisterPass<ControlDependence> 
-C("control-dependence", "compute control dependences");
+C("control-dependence", "Compute control dependences");
 
 //===----------------------------------------------------------------------===//
 // ControlDependence Implementation
@@ -49,6 +47,19 @@ bool ControlDependence::isControlDependent(BasicBlock* B, BasicBlock* A) const {
     return false;
 }
 
+// Return true if B is control dependent on A. For this to work,
+// A must be the branch instruction in its basic block
+//
+bool ControlDependence::isControlDependent(Instruction* B, Instruction* A) const {
+    assert(A != NULL && B != NULL && "Inputs cannot be NULL");
+
+    if (A != getBranchCondition(A->getParent()))
+    {
+        return false;
+    }
+
+    return isControlDependent(B->getParent(), A->getParent());
+}
 
 // Return the compare instructions on which instruction A is control dependent.
 // This is basically the list of all compare instructions used for the branch 
@@ -59,22 +70,11 @@ std::vector<Instruction*>
 ControlDependence::getControlDependenceInstructions(Instruction* A) {
     std::vector<Instruction*> DepInsts;
 
-    const std::vector<BasicBlock*>& Deps = 
-                                getControlDependences(A->getParent());
-
-    for (std::vector<BasicBlock*>::const_iterator 
-                        I = Deps.begin(), E = Deps.end(); I != E; ++I)
+    BasicBlock* P = A->getParent();
+    for (std::vector<BasicBlock*>::const_iterator I = dependence_begin(P), E = dependence_end(P);
+            I != E; ++I)
     {
-        TerminatorInst* TI = (*I)->getTerminator();
-        assert(TI != NULL && "Incorrect control dependence");
-
-        BranchInst* BI = dyn_cast<BranchInst>(TI);
-        assert(BI != NULL && BI->isConditional() && "Incorrect control dependence");
-
-        Instruction* C = cast<Instruction>(BI->getCondition());
-        assert(C != NULL && "Condition in branch is NULL");
-
-        DepInsts.push_back(C);
+        DepInsts.push_back(getBranchCondition(*I));
     }
 
     return DepInsts;
@@ -151,6 +151,26 @@ bool ControlDependence::runOnFunction(Function& F) {
     }
 
     return false;
+}
+
+Instruction* ControlDependence::getBranchCondition(BasicBlock* B) const {
+    assert(B != NULL && "Input cannot be NULL");
+
+    if (ControlDependents.find(B) == ControlDependents.end())
+    {
+        return NULL;
+    }
+
+    TerminatorInst* TI = B->getTerminator();
+    assert(TI != NULL && "Incorrect control dependence");
+
+    BranchInst* BI = dyn_cast<BranchInst>(TI);
+    assert(BI != NULL && BI->isConditional() && "Incorrect control dependence");
+
+    Instruction* C = cast<Instruction>(BI->getCondition());
+    assert(C != NULL && "Condition in branch is NULL");
+
+    return C;
 }
 
 void ControlDependence::getAnalysisUsage(AnalysisUsage& AU) const {
