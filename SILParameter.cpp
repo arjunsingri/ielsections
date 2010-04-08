@@ -25,8 +25,8 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
         std::vector<StoreInst*>& stores = reachingDef->getDefinitions(loadInst);
 
         //TODO:is this really required?
-        m_definitions.push_back(m_value);
-        m_definitionParents.push_back(loadInst->getParent());
+        //m_definitions.push_back(m_value);
+        //m_definitionParents.push_back(loadInst->getParent());
 
         for (std::vector<StoreInst*>::iterator i = stores.begin(); i != stores.end(); ++i)
         {
@@ -39,6 +39,8 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
         m_definitions.push_back(m_value);
         m_definitionParents.push_back(dyn_cast<Instruction>(m_value)->getParent());
     }
+
+    assert(m_definitions.size() == m_definitionParents.size());
 }
 
 void SILParameter::findDefinitions(PHINode* phiNode)
@@ -64,7 +66,7 @@ void SILParameter::findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& v
         {
             if (visited.find(valueAsPhiNode) == visited.end())
             {
-                findDefinitions(phiNode, visited);
+                findDefinitions(valueAsPhiNode, visited);
             }
         }
         else
@@ -104,5 +106,13 @@ void SILParameter::printSILValue(void)
 void SILParameter::addRD(unsigned int i)
 {
     m_rd.push_back(i);
+    assert(m_beta->contains(m_definitionParents[i]));
 }
 
+void SILParameter::printDefinitions(void)
+{
+    for (unsigned int i = 0; i < m_definitions.size(); ++i)
+    {
+        std::cout << *m_definitions[i] << std::endl;
+    }
+}

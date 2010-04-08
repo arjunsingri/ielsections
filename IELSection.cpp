@@ -41,13 +41,14 @@ void IELSection::printIELSection(void)
     {
         std::cout << "Found IE/L Section" << std::endl;
         print();
+        std::cout << std::endl;
     }
 }
 
 void IELSection::print(void)
 {
     SILParameterList& silParameters = getSILParameters();
-    std::cout << "Loop header: " << m_loop->getHeader()->getName() << "\nSil parameters: " << silParameters.size() << std::endl;
+    std::cout << "Loop header: " << m_loop->getHeader()->getName().str() << "\nSil parameters: " << silParameters.size() << std::endl;
     /*
        for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)
        {

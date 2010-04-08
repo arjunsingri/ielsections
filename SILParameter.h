@@ -1,6 +1,6 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/ReachingDef.h"
+#include "ReachingDef/ReachingDef.h"
 #include <string>
 #include <iostream>
 
@@ -45,6 +45,8 @@ class SILParameter
     unsigned int getNumDefinitions(void) { return m_definitions.size(); }
     Value* getDefinition(unsigned int i) { return m_definitions[i]; }
     BasicBlock* getDefinitionParent(unsigned int i) { return m_definitionParents[i]; }
+
+    void printDefinitions(void);
 
 private:
 

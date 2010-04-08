@@ -1,7 +1,7 @@
 #include "llvm/BasicBlock.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/ControlDependence.h"
+#include "ControlDependence/ControlDependence.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Type.h"
 #include "SILParameter.h"
