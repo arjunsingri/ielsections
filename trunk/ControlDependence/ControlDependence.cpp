@@ -14,7 +14,7 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/PostDominators.h"
-#include "llvm/Analysis/ControlDependence.h"
+#include "ControlDependence.h"
 
 using namespace llvm;
 
@@ -187,7 +187,7 @@ void ControlDependence::print(std::ostream& O, const Module*) const {
         for (std::vector<BasicBlock*>::const_iterator J = dependents.begin(),
                                                 F = dependents.end(); J != F; ++J)
         {
-            O << (*J)->getName() << " --> " << I->first->getName() << "\n";
+            O << (*J)->getName().str() << " --> " << I->first->getName().str() << "\n";
         }
     }
 }

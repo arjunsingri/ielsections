@@ -1,8 +1,8 @@
 #include "llvm/BasicBlock.h"
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
-#include "llvm/Analysis/ControlDependence.h"
-#include "llvm/Analysis/ReachingDef.h"
+#include "ControlDependence/ControlDependence.h"
+#include "ReachingDef/ReachingDef.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Type.h"
 #include "IELSection.h"
@@ -15,7 +15,6 @@ using namespace llvm;
 #define SIL_H
 
 class SIL : public LoopPass
-//class SIL : public FunctionPass
 {
     std::vector<IELSection*> m_ielSections;
     std::map<Value*, Value*> m_toArray;
@@ -52,7 +51,6 @@ class SIL : public LoopPass
         IELSection* addIELSection(Loop* loop);
         bool checkIELSection(IELSection* ielSection);
         virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
-//        virtual bool runOnFunction(Function &function);
 
         void dump(void);
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;

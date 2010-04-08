@@ -1,4 +1,4 @@
-LEVEL = ../../../
+LEVEL = ../../../../
 
 LIBRARYNAME = control-dependence
 

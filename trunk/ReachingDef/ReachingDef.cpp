@@ -17,7 +17,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "llvm/Type.h"
-#include "llvm/Analysis/ReachingDef.h"
+#include "ReachingDef.h"
 #include <queue>
 #include <list>
 #include <iostream>
@@ -53,12 +53,11 @@ ReachingDef::~ReachingDef(void)
 }
 
 //pointerOperand would be the operand for either a store inst or a load inst
-Value* ReachingDef::findCoreOperand(Value* pointerOperand)
+std::set<Value*> ReachingDef::findCoreOperand(Value* pointerOperand, Value** coreOperand, const Type** coreOperandType)
 {
     assert(pointerOperand != NULL && "target of store inst obtained incorrectly");
 
-    Value* coreOperand = NULL;
-
+    std::set<Value*> indices;
     if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(pointerOperand))
     {
         GetElementPtrInst* operand = getElementPtrInst;
@@ -67,18 +66,48 @@ Value* ReachingDef::findCoreOperand(Value* pointerOperand)
         do 
         {
             previous = operand;
+
+            for (User::op_iterator index = operand->idx_begin(); index != operand->idx_end(); ++index)
+            {
+                indices.insert(*index);
+            }
+
             operand = dyn_cast<GetElementPtrInst>(operand->getPointerOperand());
+
         } while (operand != NULL);
 
         getElementPtrInst = previous;
-        coreOperand = getElementPtrInst->getPointerOperand();
+        *coreOperand = getElementPtrInst->getPointerOperand();
+        if (coreOperandType != NULL)
+        {
+            *coreOperandType = getElementPtrInst->getPointerOperandType()->getElementType();
+        }
     }
     else
     {
-        coreOperand = pointerOperand;
+        *coreOperand = pointerOperand;
+        if (coreOperandType != NULL)
+        {
+            *coreOperandType = pointerOperand->getType();
+        }
+
+        switch (pointerOperand->getType()->getTypeID())
+        {
+            case Type::IntegerTyID:
+             //   std::cout << "integer\n";
+                break;
+
+            case Type::PointerTyID:
+             //   std::cout << "pointer\n";
+                break;
+
+            default:
+                std::cout << "unhandled\n";
+                assert(false);
+        }
     }
-    
-    return coreOperand;
+
+    return indices;
 }
 
 void ReachingDef::findDownwardsExposed(BasicBlock* block)
@@ -95,8 +124,11 @@ void ReachingDef::findDownwardsExposed(BasicBlock* block)
 
         if (StoreInst* storeInst = dyn_cast<StoreInst>(&inst))
         {
-            Value* coreOperand = findCoreOperand(storeInst->getPointerOperand());
-            Type::TypeID typeID = coreOperand->getType()->getTypeID();
+            Value* coreOperand;
+            const Type* coreOperandType = NULL;
+        
+            findCoreOperand(storeInst->getPointerOperand(), &coreOperand, &coreOperandType);
+            Type::TypeID typeID = coreOperandType->getTypeID();
 
             if (typeID != Type::StructTyID && typeID != Type::ArrayTyID)
             {
@@ -229,7 +261,8 @@ void ReachingDef::findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, L
     {
         StoreInst *storeInst = dyn_cast<StoreInst>(*i);
         assert(storeInst != NULL && "not a store instruction!");
-        if (coreOperand == findCoreOperand(storeInst->getPointerOperand()))
+        findCoreOperand(storeInst->getPointerOperand(), &coreOperand);
+        if (coreOperand != NULL);
         {
             m_udChain[loadInst].push_back(storeInst);
         }
@@ -245,7 +278,8 @@ void ReachingDef::constructUDChain(Function& function)
         {
             BasicBlockDup* blockDup = m_basicBlockDupMap[inst.getParent()];
             
-            Value* coreOperand = findCoreOperand(loadInst->getPointerOperand());
+            Value* coreOperand;
+            findCoreOperand(loadInst->getPointerOperand(), &coreOperand);
             findDefinitions(coreOperand, blockDup, loadInst);
         }
     }
@@ -267,7 +301,7 @@ bool ReachingDef::runOnFunction(Function& function)
 
     constructInSets(function);
     constructUDChain(function);
-    printa();
+//    printa();
 
     return false;
 }
@@ -283,7 +317,10 @@ void ReachingDef::printa(void)
 {
     for (UDChainMapType::iterator i = m_udChain.begin(); i != m_udChain.end(); ++i)
     {
-        std::cout << "For load from " << *findCoreOperand(i->first->getPointerOperand()) << " in " << *i->first << std::endl;
+        Value* coreOperand;
+        findCoreOperand(i->first->getPointerOperand(), &coreOperand);
+
+        std::cout << "For load from " << (*coreOperand).getName().str() << " in " << *i->first << std::endl;
         std::vector<StoreInst*>& rd = i->second;
         for (std::vector<StoreInst*>::iterator j = rd.begin(); j != rd.end(); ++j)
         {
