@@ -39,7 +39,6 @@ void IELSection::printIELSection(void)
 {
     if (m_isIELSection)
     {
-        std::cout << "Found IE/L Section" << std::endl;
         print();
         std::cout << std::endl;
     }
@@ -48,6 +47,7 @@ void IELSection::printIELSection(void)
 void IELSection::print(void)
 {
     SILParameterList& silParameters = getSILParameters();
+    std::cout << "Function: " << m_loop->getHeader()->getParent()->getName().str() << std::endl;
     std::cout << "Loop header: " << m_loop->getHeader()->getName().str() << "\nSil parameters: " << silParameters.size() << std::endl;
     /*
        for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)

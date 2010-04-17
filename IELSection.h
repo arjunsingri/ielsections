@@ -13,7 +13,7 @@ using namespace llvm;
 #ifndef IELSECTION_H
 #define IELSECTION_H
 
-//FIXME: should actually be PotentialIELSection or something like that
+//FIXME: should actually be PotentialIELSection or something like that?
 class IELSection
 {
     public:
