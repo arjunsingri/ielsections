@@ -24,8 +24,6 @@ void SIL::runStep1(IELSection* ielSection)
         SILParameter* currentParameter = *i;
         currentParameter->constructDefinitionList(m_currentReachingDef);
        
-        //if (isa<GetElementPtrInst>(currentParameter->getValue())) continue;
-
         bool isInside = false, isOutside = false;
  
         for (unsigned int j = 0; j < currentParameter->getNumDefinitions(); ++j)
@@ -133,7 +131,7 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
             }
         }
     }
-
+    
     return false;
 }
 
@@ -290,7 +288,21 @@ void decompile(IELSection* ielSection)
             }
         }
     }
+
     std::cout << "<end>\n";
+}
+
+void SIL::isUsedInLoadStore(GetElementPtrInst* instr, bool &result)
+{
+    for (Value::use_iterator i = instr->use_begin(); i != instr->use_end(); ++i)
+    {
+        if (GetElementPtrInst* instr2 = dyn_cast<GetElementPtrInst>(*i))
+        {
+            isUsedInLoadStore(instr2, result);
+        }
+        else if (isa<LoadInst>(*i)) result = true;
+        else if (isa<StoreInst>(*i)) result = true;
+    }
 }
 
 bool SIL::checkIELSection(IELSection* ielSection)
@@ -351,7 +363,22 @@ bool SIL::checkIELSection(IELSection* ielSection)
                         std::cout << "condition " << *branchInst->getCondition() << " is not an instruction\n";
                         assert(false);
                     }
-               }
+                }
+            }
+            else if (GetElementPtrInst *getElementPtrInst = dyn_cast<GetElementPtrInst>(instr))
+            {
+                bool result;
+                isUsedInLoadStore(getElementPtrInst, result);
+                if (!result)
+                {
+                    //std::cout << *instr << std::endl;
+                    SILParameter* parameter = ielSection->getSILParameter(instr);
+                    if (parameter->getSILValue() == False)
+                    {
+                        //std::cout << *parameter->getInstruction() << std::endl;
+                        isIELSection = false;
+                    }
+                }
             }
         }
     }
@@ -373,7 +400,7 @@ bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
 
         ielSection->setIELSection(checkIELSection(ielSection));
 //        if (ielSection->isIELSection()) { decompile(ielSection); }
-//        ielSection->printIELSection();
+        ielSection->printIELSection();
     }
 
     //dump();

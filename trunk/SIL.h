@@ -52,6 +52,8 @@ class SIL : public LoopPass
         bool checkIELSection(IELSection* ielSection);
         virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
 
+        static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
+
         void dump(void);
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;
 };
