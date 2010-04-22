@@ -36,6 +36,7 @@ class IELSection
         SILParameterList& getSILParameters(void) { return m_silParameters; }
 
         void printIELSection(void);
+	void generateGraphVizFile(void);
         void print(void);
 
     private:
