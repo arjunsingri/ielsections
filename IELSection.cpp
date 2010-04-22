@@ -1,4 +1,5 @@
 #include "IELSection.h"
+#include <string>
 
 using namespace llvm;
 
@@ -42,6 +43,28 @@ void IELSection::printIELSection(void)
         print();
         std::cout << std::endl;
     }
+}
+
+void IELSection::generateGraphVizFile(void)
+{
+	if (m_isIELSection)
+	{
+		Loop* parent = m_loop;
+		std::string previousLabel = m_loop->getHeader()->getParent()->getName().str();
+		std::cout << previousLabel + " [label=\"" + previousLabel + " " + "\"]\n";
+
+		do
+		{
+			parent = parent->getParentLoop();
+			if (parent != NULL)
+			{
+				std::string currentLabel = parent->getHeader()->getParent()->getName().str();
+				std::cout << currentLabel + " [label=\"" + currentLabel + " " + "\"]\n";
+				std::cout << currentLabel << "->" << previousLabel << std::endl;
+			}
+			
+		} while (parent != NULL);
+	}
 }
 
 void IELSection::print(void)
