@@ -7,6 +7,7 @@
 #include "SILParameter.h"
 #include <string>
 #include <iostream>
+#include <fstream>
 
 using namespace llvm;
 
@@ -36,7 +37,7 @@ class IELSection
         SILParameterList& getSILParameters(void) { return m_silParameters; }
 
         void printIELSection(void);
-	void generateGraphVizFile(void);
+	void generateGraphVizFile(std::fstream& file);
         void print(void);
 
     private:

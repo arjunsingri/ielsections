@@ -1,0 +1,2 @@
+opt -load ../../llvm-2.6/Release/lib/reaching-def.so -load ../../llvm-2.6/Release/lib/control-dependence.so -load ../../llvm-2.6/Release/lib/iel.so -iel -load ../../llvm-2.6/Release/lib/loopgraph.so ../hello.bc
+

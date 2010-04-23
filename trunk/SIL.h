@@ -8,29 +8,37 @@
 #include "IELSection.h"
 #include <string>
 #include <iostream>
+#include <fstream>
 
 using namespace llvm;
  
 #ifndef SIL_H
 #define SIL_H
 
-class SIL : public LoopPass
+//class SIL : public LoopPass
+class SIL : public FunctionPass
 {
     std::vector<IELSection*> m_ielSections;
+    std::vector<Loop*> m_loops;
     std::map<Value*, Value*> m_toArray;
     std::map<Value*, std::vector<Value*> >  m_arrayDefinitions;
     std::map<Value*, std::vector<BasicBlock*> > m_arrayDefinitionsBlocks;
     ReachingDef* m_currentReachingDef;
     int m_id;
+    std::fstream m_file;
 
     public:
         static char ID;
         
         SIL();
+        ~SIL();
 
         int getId(void) { return m_id++; }
 
+        const std::vector<Loop*>& getLoops(void) { return m_loops; }
+        const std::vector<Loop*>& getLoops(void) const { return m_loops; }
         const std::vector<IELSection*>& getIELSections(void) { return m_ielSections; }
+        const std::vector<IELSection*>& getIELSections(void) const { return m_ielSections; }
 
         //perform step1 as per the paper and at the same time construct set RD for each triplet
         void runStep1(IELSection* ielSection);
@@ -50,7 +58,9 @@ class SIL : public LoopPass
         //the plan is to ignore all loops which call functions
         IELSection* addIELSection(Loop* loop);
         bool checkIELSection(IELSection* ielSection);
-        virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
+
+        //virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
+        virtual bool runOnFunction(Function& function);
 
         static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
 

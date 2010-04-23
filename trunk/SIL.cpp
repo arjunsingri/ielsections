@@ -6,10 +6,20 @@ char SIL::ID = 0;
 static RegisterPass<SIL> sil("iel", "find all IE/L sections");
 
 SIL::SIL()
-    :   LoopPass(&ID),
+    :   //LoopPass(&ID),
+        FunctionPass(&ID),
         m_currentReachingDef(NULL),
         m_id(0)
 {
+    std::string filename = "/nfs/18/osu5369/llvm-2.6/lib/Analysis/ielsections/asdf";
+    m_file.open(filename.c_str(), std::fstream::out);
+    m_file << "digraph{\n";
+}
+
+SIL::~SIL()
+{
+    m_file << "\n}";
+    m_file.close();
 }
 
 //perform step1 as per the paper and at the same time construct set RD for each triplet
@@ -387,20 +397,38 @@ bool SIL::checkIELSection(IELSection* ielSection)
     return isIELSection;
 }
 
-bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
+//bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
+bool SIL::runOnFunction(Function& function)
 {
     m_currentReachingDef = &getAnalysis<ReachingDef>();
-    assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
+    LoopInfo& loopInfo = getAnalysis<LoopInfo>();
+    std::map<Loop*, bool> visited;
 
-    if (IELSection* ielSection = addIELSection(loop))
+    for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
-        runStep1(ielSection);
-        runStep2(ielSection);
-        runStep3(ielSection);
+        Loop* loop = loopInfo.getLoopFor(i);
+        if (loop == NULL) continue;
+        if (visited.find(loop) != visited.end()) continue;
+        visited[loop] = true;
 
-        ielSection->setIELSection(checkIELSection(ielSection));
-//        if (ielSection->isIELSection()) { decompile(ielSection); }
-        ielSection->printIELSection();
+        assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
+        m_loops.push_back(loop);
+
+        if (IELSection* ielSection = addIELSection(loop))
+        {
+            runStep1(ielSection);
+            runStep2(ielSection);
+            runStep3(ielSection);
+
+            ielSection->setIELSection(checkIELSection(ielSection));
+            if (ielSection->isIELSection())
+            {
+                m_ielSections.push_back(ielSection);
+            }
+
+            ielSection->printIELSection();
+            ielSection->generateGraphVizFile(m_file);
+        }
     }
 
     //dump();
@@ -430,5 +458,6 @@ void SIL::getAnalysisUsage(AnalysisUsage& AU) const
     AU.setPreservesAll();
     AU.addRequired<ReachingDef>();
     AU.addRequired<ControlDependence>();
+    AU.addRequired<LoopInfo>();
 }
 
