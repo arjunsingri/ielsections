@@ -45,26 +45,31 @@ void IELSection::printIELSection(void)
     }
 }
 
-void IELSection::generateGraphVizFile(void)
+void IELSection::generateGraphVizFile(std::fstream& file)
 {
-	if (m_isIELSection)
-	{
-		Loop* parent = m_loop;
-		std::string previousLabel = m_loop->getHeader()->getParent()->getName().str();
-		std::cout << previousLabel + " [label=\"" + previousLabel + " " + "\"]\n";
+    if (m_isIELSection)
+    {
+        Loop* parent = m_loop;
+        std::string previousLabel = m_loop->getHeader()->getName().str();
+        std::string functionName = m_loop->getHeader()->getParent()->getName().str();
+        file << "subgraph cluster_"  << m_id << "{\n";
+        file << "label = " + functionName << std::endl;
+        file << previousLabel + " [style=filled, label=\"" + previousLabel + "\"]\n";
 
-		do
-		{
-			parent = parent->getParentLoop();
-			if (parent != NULL)
-			{
-				std::string currentLabel = parent->getHeader()->getParent()->getName().str();
-				std::cout << currentLabel + " [label=\"" + currentLabel + " " + "\"]\n";
-				std::cout << currentLabel << "->" << previousLabel << std::endl;
-			}
-			
-		} while (parent != NULL);
-	}
+        do
+        {
+            parent = parent->getParentLoop();
+            if (parent != NULL)
+            {
+                std::string currentLabel = parent->getHeader()->getName().str();
+                file << currentLabel + " [label=\"" + currentLabel + "\"]\n";
+                file << currentLabel << "->" << previousLabel << std::endl;
+            }
+
+        } while (parent != NULL);
+
+        file << "}\n";
+    }
 }
 
 void IELSection::print(void)
