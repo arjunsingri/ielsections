@@ -13,7 +13,7 @@ using namespace llvm;
 
 class LoopGraph : public FunctionPass
 {
-    std::map<Loop*, std::vector<Loop*> > m_loopGraph;
+    std::map<Loop*, std::set<Loop*> > m_loopGraph;
     std::fstream m_file;
 
     public:

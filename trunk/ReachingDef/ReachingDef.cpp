@@ -320,11 +320,11 @@ void ReachingDef::printa(void)
         Value* coreOperand;
         findCoreOperand(i->first->getPointerOperand(), &coreOperand);
 
-        std::cout << "For load from " << (*coreOperand).getName().str() << " in " << *i->first << std::endl;
+        //std::cout << "For load from " << (*coreOperand).getName().str() << " in " << *i->first << std::endl;
         std::vector<StoreInst*>& rd = i->second;
         for (std::vector<StoreInst*>::iterator j = rd.begin(); j != rd.end(); ++j)
         {
-            std::cout << "\t" << **j << std::endl;
+            //std::cout << "\t" << **j << std::endl;
         }
     }
 }

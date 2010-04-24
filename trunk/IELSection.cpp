@@ -1,4 +1,5 @@
 #include "IELSection.h"
+#include "llvm/Analysis/DebugInfo.h"
 #include <string>
 
 using namespace llvm;
@@ -77,6 +78,11 @@ void IELSection::print(void)
     SILParameterList& silParameters = getSILParameters();
     std::cout << "Function: " << m_loop->getHeader()->getParent()->getName().str() << std::endl;
     std::cout << "Loop header: " << m_loop->getHeader()->getName().str() << "\nSil parameters: " << silParameters.size() << std::endl;
+    if (MDNode* node = m_loop->getHeader()->getFirstNonPHI()->getMetadata("dbg"))
+    {
+        DILocation loc(node);
+        std::cout << "Source file: " << loc.getFilename().str() << " line: " << loc.getLineNumber() << std::endl;
+    }
     /*
        for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)
        {
