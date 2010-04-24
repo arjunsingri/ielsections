@@ -26,6 +26,7 @@ class SIL : public FunctionPass
     ReachingDef* m_currentReachingDef;
     int m_id;
     std::fstream m_file;
+    std::map<Loop*, std::set<Loop*> > m_loopGraph;
 
     public:
         static char ID;
@@ -63,6 +64,12 @@ class SIL : public FunctionPass
         virtual bool runOnFunction(Function& function);
 
         static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
+
+        void printAdjacentLoops(Loop* loop, LoopInfo& loopInfo, char* id);
+        static int getLineNumber(Loop* loop);
+        void printNode(Loop* loop, char* id, bool isFilled);
+        void printEdge(Loop* srcLoop, Loop* dstLoop, char* id);
+        bool isAncestor(Loop* dstLoop, Loop* srcLoop);
 
         void dump(void);
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;

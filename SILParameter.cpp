@@ -113,6 +113,6 @@ void SILParameter::printDefinitions(void)
 {
     for (unsigned int i = 0; i < m_definitions.size(); ++i)
     {
-        std::cout << *m_definitions[i] << std::endl;
+        //std::cout << *m_definitions[i] << std::endl;
     }
 }

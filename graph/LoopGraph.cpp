@@ -8,7 +8,8 @@ static RegisterPass<LoopGraph> loopGraphPass("loopgraph", "construct a graph of 
 LoopGraph::LoopGraph()
     :   FunctionPass(&ID)
 {
-    std::string filename = "/nfs/18/osu5369/llvm-2.6/lib/Analysis/ielsections/graph/asdf";
+    //std::string filename = "/nfs/18/osu5369/llvm-2.6/lib/Analysis/ielsections/graph/asdf";
+    std::string filename = "/home/singri/llvm-2.7/llvm/lib/Analysis/ielsections/graph/asdf";
     m_file.open(filename.c_str(), std::fstream::out);
     m_file << "digraph{\n";
 }
@@ -25,14 +26,15 @@ void LoopGraph::generateDotFile(std::string functionName)
     m_file << "subgraph cluster_"  << functionName << "{\n";
     m_file << "label = " << functionName << std::endl;
 
-    for (std::map<Loop*, std::vector<Loop*> >::iterator i = m_loopGraph.begin(); i != m_loopGraph.end(); ++i)
+    for (std::map<Loop*, std::set<Loop*> >::iterator i = m_loopGraph.begin(); i != m_loopGraph.end(); ++i)
     {
         Loop* loop = (*i).first;
-        std::vector<Loop*>& dests = (*i).second;
+	assert(loop != NULL);
+        std::set<Loop*>& dests = (*i).second;
         std::string src = loop->getHeader()->getName().str();
         m_file << src << " [label=\"" + src + "\"]\n";
 
-        for (std::vector<Loop*>::iterator j = dests.begin(); j != dests.end(); ++j)
+        for (std::set<Loop*>::iterator j = dests.begin(); j != dests.end(); ++j)
         {
             std::string dest = (*j)->getHeader()->getName().str();
             m_file << dest << " [label=\"" + dest + "\"]\n";
@@ -62,15 +64,9 @@ void LoopGraph::constructLoopGraph(Function& function)
         std::map<BasicBlock*, bool> visited;
         std::queue<BasicBlock*> blockQueue;
 
-        if (loop == NULL) std::cout << "loop is NULL!\n";
-        std::cout << "start " << function.getName().str() << "\n";
-        SmallVectorImpl<BasicBlock*> exitBlocks(1000);
-        //SmallVectorImpl<BasicBlock*> exitBlocks(function.size());
-        loop->getExitingBlocks(exitBlocks);
-        std::cout << "end\n";
-
-#if 0
-        for (SmallVectorImpl<BasicBlock*>::iterator j = exitBlocks.begin(); j != exitBlocks.end(); ++j)
+        assert(loop != NULL);
+    
+	for (LoopBase<BasicBlock, Loop>::block_iterator j = loop->block_begin(); j != loop->block_end(); ++j)
         {
             blockQueue.push(*j);
         }
@@ -80,7 +76,6 @@ void LoopGraph::constructLoopGraph(Function& function)
             BasicBlock* block = blockQueue.front();
             blockQueue.pop();
 
-            visited[block] = true;
             for (succ_iterator succ = succ_begin(block); succ != succ_end(block); ++succ)
             {
                 if (visited.find(*succ) == visited.end())
@@ -88,22 +83,22 @@ void LoopGraph::constructLoopGraph(Function& function)
                     Loop* containingLoop = loopInfo.getLoopFor(*succ);
                     if (containingLoop != NULL && containingLoop != loop)
                     {
-                        m_loopGraph[loop].push_back(containingLoop);
+                        m_loopGraph[loop].insert(containingLoop);
                     }
 
                     blockQueue.push(*succ);
+		    visited[block] = true;
                 }
             }
         }
-#endif
     }
 }
 
 bool LoopGraph::runOnFunction(Function& function)
 {
     constructLoopGraph(function);
-    //generateDotFile(function.getName().str());
     std::cout << function.getName().str() << std::endl;
+    generateDotFile(function.getName().str());
     return false;
 }
 
