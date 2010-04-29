@@ -1,7 +1,11 @@
 #include "SIL.h"
-#include "llvm/Analysis/DebugInfo.h"
+#include "llvm/Support/CommandLine.h"
+#include "utils.h"
 
 using namespace llvm;
+
+static cl::opt<std::string> graphFile("iel:graph", cl::desc("Specify filename for the dot file"), cl::value_desc("filename"));
+extern cl::opt<bool> printRejected("iel:print-rejected", cl::desc("Print rejected candidates for IE/L-sections"));
 
 char SIL::ID = 0;
 static RegisterPass<SIL> sil("iel", "find all IE/L sections");
@@ -12,7 +16,8 @@ SIL::SIL()
         m_currentReachingDef(NULL),
         m_id(0)
 {
-    std::string filename = "/home/singri/llvm-2.7/llvm/lib/Analysis/ielsections/Untitled1";
+//    std::string filename = "/home/singri/llvm-2.7/llvm/lib/Analysis/ielsections/Untitled1";
+    std::string filename = graphFile.c_str();
     m_file.open(filename.c_str(), std::fstream::out);
     m_file << "digraph{\n";
 }
@@ -55,7 +60,7 @@ void SIL::runStep1(IELSection* ielSection)
 
         if (isInside && isOutside)
         {
-            currentParameter->setSILValue(False);
+            currentParameter->setSILValue(False, SILParameter::Step1);
         }
         else
         {
@@ -122,7 +127,7 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
 
             if (p->getSILValue() == False)
             {
-                silParameter->setSILValue(False);
+                silParameter->setSILValue(False, SILParameter::Step2a, inst, p);
                 return true;
             }
         }
@@ -133,17 +138,34 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
     {
         for (User::op_iterator j = (*i)->op_begin(); j != (*i)->op_end(); ++j)
         {
-            if (isa<Constant>(*j))
+            //TODO: parameters to function calls are not instructions, so will be skipped here
+            if (isa<Constant>(*j) || !isa<Instruction>(*j))
                 continue;
 
             //this can never return NULL as all *j that are considered here are inside the loop
             //and we have constructed an SILParameter object for all variables used inside the loop
             SILParameter* p = ielSection->getSILParameter(*j);
+ 
+            if (p == NULL)
+            { 
+                //std::cout << "error: " << *inst << std::endl;
+		std::cout << "error: cp: \n";
+		(*i)->dump();
+		std::cout << std::endl;
+                //std::cout << *(j->get()) << std::endl; 
+                j->get()->dump(); 
+                //std::cout << *silParameter->getInstruction() << std::endl;
+                silParameter->getInstruction()->dump();
+                //std::cout << *silParameter->getValue() << std::endl;
+                silParameter->getValue()->dump();
+            }
+
+
             assert(p != NULL);
 
             if (p->getSILValue() == False)
             {
-                silParameter->setSILValue(False);
+                silParameter->setSILValue(False, SILParameter::Step2b, *i, p);
                 return true;
             }
         }
@@ -228,6 +250,7 @@ IELSection* SIL::addIELSection(Loop* loop)
             for (User::op_iterator def = instr->op_begin(); def != instr->op_end(); ++def)
             {
                 Value* v = def->get();
+
                 if (isa<BasicBlock>(v) || !isa<Instruction>(v))
                 {
                     continue;
@@ -330,9 +353,9 @@ bool SIL::checkIELSection(IELSection* ielSection)
     std::vector<BasicBlock*> blocks = ielSection->getBlocks();
     //std::cout << "----Loop header: " << loop->getHeader()->getName() << " blocks: " << blocks.size() << std::endl;
 
-    for (std::vector<BasicBlock*>::iterator block = blocks.begin(); block != blocks.end()/* && isIELSection*/; ++block)
+    for (std::vector<BasicBlock*>::iterator block = blocks.begin(); block != blocks.end() && isIELSection; ++block)
     {
-        for (BasicBlock::iterator instr = (*block)->begin(); instr != (*block)->end()/* && isIELSection*/; ++instr)
+        for (BasicBlock::iterator instr = (*block)->begin(); instr != (*block)->end() && isIELSection; ++instr)
         {
             if (LoadInst *loadInst = dyn_cast<LoadInst>(instr))
             {
@@ -352,7 +375,12 @@ bool SIL::checkIELSection(IELSection* ielSection)
                     if (parameter->getSILValue() == False)
                     {
                         isIELSection = false;
-                        //std::cout << parameter->getValue()->getName().str() << std::endl;
+                        if (printRejected)
+                        {
+                            std::cerr << "Array index" << std::endl;
+                            parameter->print();
+                            std::cerr << std::endl;
+                        }
                         //parameter->printSILValue();
                     }
                 }
@@ -373,6 +401,12 @@ bool SIL::checkIELSection(IELSection* ielSection)
                             assert(parameter != NULL);
                             if (parameter->getSILValue() == False)
                             {
+                                if (printRejected)
+                                {
+                                    std::cerr << "Branch\n";
+                                    parameter->print();
+                                    std::cerr << std::endl;
+                                }
                                 isIELSection = false;
                             }
                         }
@@ -397,6 +431,12 @@ bool SIL::checkIELSection(IELSection* ielSection)
                     SILParameter* parameter = ielSection->getSILParameter(instr);
                     if (parameter->getSILValue() == False)
                     {
+                        if (printRejected)
+                        {
+                            std::cerr << "Array index (use)\n";
+                            parameter->print();
+                            std::cerr << std::endl;
+                        }
                         //std::cout << *parameter->getInstruction() << std::endl;
                         isIELSection = false;
                     }
@@ -414,7 +454,6 @@ bool SIL::runOnFunction(Function& function)
 {
     m_currentReachingDef = &getAnalysis<ReachingDef>();
     LoopInfo& loopInfo = getAnalysis<LoopInfo>();
-    std::map<Loop*, bool> visited;
 
     std::string functionName = function.getName().str();
     m_file << "subgraph cluster_" << functionName << "{\n";
@@ -425,6 +464,7 @@ bool SIL::runOnFunction(Function& function)
     char buffer[10];
     sprintf(buffer, "_%d", id);
 
+    std::map<Loop*, bool> visited;
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
         Loop* loop = loopInfo.getLoopFor(i);
@@ -433,7 +473,6 @@ bool SIL::runOnFunction(Function& function)
         visited[loop] = true;
 
         assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
-        m_loops.push_back(loop);
 
         if (IELSection* ielSection = addIELSection(loop))
         {
@@ -441,24 +480,36 @@ bool SIL::runOnFunction(Function& function)
             runStep2(ielSection);
             runStep3(ielSection);
 
-            ielSection->setIELSection(checkIELSection(ielSection));
-            if (ielSection->isIELSection())
+            bool isIELSection = checkIELSection(ielSection);
+            ielSection->setIELSection(isIELSection);
+            if (isIELSection)
             {
                 m_ielSections.push_back(ielSection);
+                ielSection->printIELSection();
             }
 
-            ielSection->printIELSection();
             if (ielSection->isIELSection())
             {
-                printNode(loop, buffer, true);
+//                printNode(loop, buffer, true);
             }
         }
 
-	printAdjacentLoops(loop, loopInfo, buffer);
+//	printAdjacentLoops(loop, loopInfo, buffer);
     }
 
-    m_file << "}\n";
+    /*
+    visited.clear();
+    for (Function::iterator i = function.begin(); i != function.end(); ++i)
+    {
+        Loop* loop = loopInfo.getLoopFor(i);
+        if (loop == NULL) continue;
+        if (visited.find(loop) != visited.end()) continue;
+        visited[loop] = true;
 
+
+    }
+*/
+    m_file << "}\n";
     return false;
 }
 
@@ -493,17 +544,19 @@ void SIL::printEdge(Loop* srcLoop, Loop* dstLoop, char* id)
     m_file << src + "->" + dst + ";\n";
 }
 
-int SIL::getLineNumber(Loop* loop)
+#if 0
+void SIL::printLoopStructure(Loop* loop, char* id)
 {
-    int lineNumber = -1;
-    if (MDNode* node = loop->getHeader()->getFirstNonPHI()->getMetadata("dbg"))
+    std::string subgraph = "subgraph ";
+    std::vector<Loop*> subLoops = loop->getSubLoops();
+    for (std::vector<Loop*>::iterator i subLoops.begin(); i != subLoops.end(); ++i)
     {
-        DILocation loc(node);
-        lineNumber = loc.getLineNumber();
-    }
+        printLoopStructure(*i, id);
 
-    return lineNumber;
+        m_file << subgraph + loop->getHeader()->getName().str() + id + "{\n";
+    }
 }
+#endif
 
 void SIL::printAdjacentLoops(Loop* srcLoop, LoopInfo& loopInfo, char* id)
 {
@@ -562,10 +615,11 @@ bool SIL::isAncestor(Loop* dstLoop, Loop* srcLoop)
 
 void SIL::dump(void)
 {
+    std::cout << "Found " << m_ielSections.size() << " IE/L-section" << (m_ielSections.size() > 1 ? "s\n": "\n");
     for (std::vector<IELSection*>::iterator i = m_ielSections.begin(); i != m_ielSections.end(); ++i)
     {
         Loop* loop = (*i)->getLoop();
-        std::cout << "Loop header: " << loop->getHeader()->getName().str() << "\n\n";
+        std::cerr << "Loop header: " << loop->getHeader()->getName().str() << "\n\n";
         
         SILParameterList& parList = (*i)->getSILParameters();
 

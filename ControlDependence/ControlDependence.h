@@ -82,7 +82,7 @@ class ControlDependence : public FunctionPass {
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;
 
         //print - Show contents in human readable format...
-        void print(std::ostream& O, const Module* = 0) const;
+        void print(std::ostream& O) const;
 
     private:
         

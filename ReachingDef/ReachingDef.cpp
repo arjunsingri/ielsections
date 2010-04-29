@@ -253,16 +253,22 @@ void ReachingDef::constructInSets(Function& function)
     } while (hasChanged);
 }
 
-void ReachingDef::findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst)
+void ReachingDef::findDefinitions(BasicBlockDup* blockDup, LoadInst* loadInst)
 {
     InSetType& inSet = blockDup->getInSet();
-        
+
+    Value* loadCoreOperand = NULL;
+    findCoreOperand(loadInst->getPointerOperand(), &loadCoreOperand);
+
     for (InSetType::iterator i = inSet.begin(); i != inSet.end(); ++i)
     {
         StoreInst *storeInst = dyn_cast<StoreInst>(*i);
         assert(storeInst != NULL && "not a store instruction!");
-        findCoreOperand(storeInst->getPointerOperand(), &coreOperand);
-        if (coreOperand != NULL);
+        
+        Value* storeCoreOperand = NULL;
+        findCoreOperand(storeInst->getPointerOperand(), &storeCoreOperand);
+
+        if (loadCoreOperand == storeCoreOperand)
         {
             m_udChain[loadInst].push_back(storeInst);
         }
@@ -278,9 +284,7 @@ void ReachingDef::constructUDChain(Function& function)
         {
             BasicBlockDup* blockDup = m_basicBlockDupMap[inst.getParent()];
             
-            Value* coreOperand;
-            findCoreOperand(loadInst->getPointerOperand(), &coreOperand);
-            findDefinitions(coreOperand, blockDup, loadInst);
+            findDefinitions(blockDup, loadInst);
         }
     }
 }

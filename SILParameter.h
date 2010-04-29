@@ -1,6 +1,7 @@
 #include "llvm/Support/InstIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "ReachingDef/ReachingDef.h"
+#include "utils.h"
 #include <string>
 #include <iostream>
 
@@ -17,10 +18,17 @@ enum SILValue
     DontKnow
 };
 
-
 class SILParameter
 {
-    public:
+public:
+
+    enum RejectedStep
+    {
+        Step1,
+        Step2a,
+        Step2b
+    };
+
 
     SILParameter(Loop* beta, Value* value, Instruction* s);
     void printSILValue(void);
@@ -39,6 +47,8 @@ class SILParameter
 
     SILValue getSILValue(void) { assert(m_silValue != NotInitialized); return m_silValue; }
     void setSILValue(SILValue silValue) { m_silValue = silValue; }
+    void setSILValue(SILValue silValue, RejectedStep step) { m_silValue = silValue; m_step = step; }
+    void setSILValue(SILValue silValue, RejectedStep step, Instruction* step2Inst, SILParameter* rejectionSource) { m_silValue = silValue; m_step = step; m_rejectionSource = rejectionSource; m_step2Inst = step2Inst; }
 
     void constructDefinitionList(ReachingDef* reachingDef);
 
@@ -47,6 +57,8 @@ class SILParameter
     BasicBlock* getDefinitionParent(unsigned int i) { return m_definitionParents[i]; }
 
     void printDefinitions(void);
+    void print(void);
+    void printRejectionPath(void);
 
 private:
 
@@ -67,6 +79,10 @@ private:
 
     std::vector<Value*> m_definitions;
     std::vector<BasicBlock*> m_definitionParents;
+    std::vector<int> m_rejectedPath;
+    RejectedStep m_step;
+    Instruction* m_step2Inst; //for lack of a better name
+    SILParameter* m_rejectionSource;
 };
 
 typedef std::vector<SILParameter*> SILParameterList;

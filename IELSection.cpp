@@ -1,5 +1,6 @@
 #include "IELSection.h"
 #include "llvm/Analysis/DebugInfo.h"
+#include "utils.h"
 #include <string>
 
 using namespace llvm;
@@ -42,7 +43,7 @@ void IELSection::printIELSection(void)
     if (m_isIELSection)
     {
         print();
-        std::cout << std::endl;
+        std::cerr << std::endl;
     }
 }
 
@@ -75,14 +76,13 @@ void IELSection::generateGraphVizFile(std::fstream& file)
 
 void IELSection::print(void)
 {
-    SILParameterList& silParameters = getSILParameters();
-    std::cout << "Function: " << m_loop->getHeader()->getParent()->getName().str() << std::endl;
-    std::cout << "Loop header: " << m_loop->getHeader()->getName().str() << "\nSil parameters: " << silParameters.size() << std::endl;
-    if (MDNode* node = m_loop->getHeader()->getFirstNonPHI()->getMetadata("dbg"))
-    {
-        DILocation loc(node);
-        std::cout << "Source file: " << loc.getFilename().str() << " line: " << loc.getLineNumber() << std::endl;
-    }
+    //SILParameterList& silParameters = getSILParameters();
+    std::cerr << "Line no: " << getLineNumber(m_loop) << "\nSource file: " << getSourceFile(m_loop) << std::endl;
+    std::cerr << "Loop header: " << m_loop->getHeader()->getName().str() << std::endl;
+    std::cerr << "Function: " << m_loop->getHeader()->getParent()->getName().str() << std::endl;
+
+    //std::cout << "\nSil parameters: " << silParameters.size() << std::endl;
+
     /*
        for (SILParameterList::iterator i = silParameters.begin(); i != silParameters.end(); ++i)
        {
