@@ -66,10 +66,10 @@ class SIL : public FunctionPass
         static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
 
         void printAdjacentLoops(Loop* loop, LoopInfo& loopInfo, char* id);
-        static int getLineNumber(Loop* loop);
         void printNode(Loop* loop, char* id, bool isFilled);
         void printEdge(Loop* srcLoop, Loop* dstLoop, char* id);
         bool isAncestor(Loop* dstLoop, Loop* srcLoop);
+        static int getSourceLine(Instruction* inst);
 
         void dump(void);
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;

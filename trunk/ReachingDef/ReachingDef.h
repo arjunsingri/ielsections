@@ -123,7 +123,7 @@ class ReachingDef : public FunctionPass
         void constructInSets(Function& function);
         void constructUDChain(Function& function);
 
-        void findDefinitions(Value* coreOperand, BasicBlockDup* blockDup, LoadInst* loadInst);
+        void findDefinitions(BasicBlockDup* blockDup, LoadInst* loadInst);
 
 
 };

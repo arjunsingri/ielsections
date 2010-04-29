@@ -1,4 +1,5 @@
 #include "SILParameter.h"
+#include "utils.h"
 
 using namespace llvm;
 
@@ -8,7 +9,8 @@ SILParameter::SILParameter(Loop* beta, Value* value, Instruction* s)
     :   m_beta(beta), 
         m_value(value), 
         m_s(s), 
-        m_silValue(NotInitialized)
+        m_silValue(NotInitialized),
+        m_rejectionSource(NULL)
 {
 }
 
@@ -23,8 +25,8 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
     else if (LoadInst* loadInst = dyn_cast<LoadInst>(m_value))
     {
         std::vector<StoreInst*>& stores = reachingDef->getDefinitions(loadInst);
-
-        //TODO:is this really required?
+ 
+       //TODO:is this really required?
         //m_definitions.push_back(m_value);
         //m_definitionParents.push_back(loadInst->getParent());
 
@@ -33,6 +35,24 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
             m_definitions.push_back(*i);
             m_definitionParents.push_back((*i)->getParent());
         }
+ 
+/*
+        if (m_beta->getHeader()->getParent()->getName().str() == "mainQSort3")
+        {
+            Value* coreOperand = NULL;
+            ReachingDef::findCoreOperand(loadInst->getPointerOperand(), &coreOperand);
+
+            if (coreOperand->getName().str() == "budget")
+            {
+                std::cerr << "Line: " << getLineNumber(dyn_cast<Instruction>(m_value)) << " No: " << stores.size() << std::endl;
+                for (std::vector<StoreInst*>::iterator i = stores.begin(); i != stores.end(); ++i)
+                {
+                    (*i)->dump();
+                    std::cout << getLineNumber(*i) << std::endl;
+                }
+            }
+        }
+*/
     }
     else
     {
@@ -109,10 +129,58 @@ void SILParameter::addRD(unsigned int i)
     assert(m_beta->contains(m_definitionParents[i]));
 }
 
+void SILParameter::print(void)
+{
+    std::cerr << "Value: ";
+    std::cerr.flush();
+    m_value->dump();
+    //std::cerr << "Instruction: ";
+    //std::cerr.flush();
+    //m_s->dump();
+    std::cerr << "Line: " << getLineNumber(m_s) << std::endl;
+    printRejectionPath();
+    std::cerr << "Loop: " << m_beta->getHeader()->getName().str() << std::endl;
+    std::cerr << "Line: " << getLineNumber(m_beta->getHeader()->getFirstNonPHI()) << std::endl;
+}
+
+void SILParameter::printRejectionPath(void)
+{
+    if (m_step == Step1)
+    {
+        std::cerr << "Step1: ";
+        for (unsigned int i = 0; i < m_definitions.size(); ++i)
+        {
+            if (Instruction* inst = dyn_cast<Instruction>(m_definitions[i]))
+            {
+                std::cerr << getLineNumber(inst) << "\t";
+            }
+        }
+
+        std::cerr << std::endl;
+    }
+    else
+    {
+        if (m_rejectionSource != NULL)
+        {
+            if (m_step == Step2a)
+            {
+                std::cerr << "Step2a: ";
+            }
+            else
+            {
+                std::cerr << "Step2b: ";
+            }
+
+            std::cerr << getLineNumber(m_step2Inst) << std::endl;
+            m_rejectionSource->printRejectionPath();
+        }
+    }
+}
+
 void SILParameter::printDefinitions(void)
 {
     for (unsigned int i = 0; i < m_definitions.size(); ++i)
     {
-        //std::cout << *m_definitions[i] << std::endl;
+         m_definitions[i]->dump();
     }
 }

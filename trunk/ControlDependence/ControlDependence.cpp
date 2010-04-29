@@ -179,7 +179,7 @@ void ControlDependence::getAnalysisUsage(AnalysisUsage& AU) const {
 }
 
 //print - Show contents in human readable format...
-void ControlDependence::print(std::ostream& O, const Module*) const {
+void ControlDependence::print(std::ostream& O) const {
     for (ControlDependentTy::const_iterator I = ControlDependents.begin(), 
             E = ControlDependents.end(); I != E; ++I)
     {

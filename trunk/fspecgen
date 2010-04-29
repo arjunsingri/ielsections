@@ -1,0 +1,1 @@
+llvm-gfortran -emit-llvm -c $1 -o ~/ielsections/hello.bc; opt -mem2reg ~/ielsections/hello.bc -o ~/ielsections/hello.bc -f; rm ~/ielsections/hello.ll; llvm-dis ~/ielsections/hello.bc -o ~/ielsections/hello.ll
