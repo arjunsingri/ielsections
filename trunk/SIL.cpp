@@ -4,8 +4,8 @@
 
 using namespace llvm;
 
-static cl::opt<std::string> graphFile("iel:graph", cl::desc("Specify filename for the dot file"), cl::value_desc("filename"));
-extern cl::opt<bool> printRejected("iel:print-rejected", cl::desc("Print rejected candidates for IE/L-sections"));
+cl::opt<std::string> graphFile("iel:graph", cl::desc("Specify filename for the dot file"), cl::value_desc("filename"));
+cl::opt<bool> printRejected("iel:print-rejected", cl::desc("Print rejected candidates for IE/L-sections"));
 
 char SIL::ID = 0;
 static RegisterPass<SIL> sil("iel", "find all IE/L sections");
@@ -103,7 +103,7 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
 
         for (User::op_iterator j = inst->op_begin(); j != inst->op_end(); ++j)
         {
-            if (isa<Constant>(*j) || !isa<Instruction>(*j)) continue;
+            if (isa<Constant>(*j) || !isa<Instruction>(*j) || isa<BasicBlock>(*j)) continue;
 
             //this can never return NULL as all *j that are considered here are inside the loop 
             //and we have constructed an SILParameter object for all variables used inside the loop
@@ -127,8 +127,9 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
 
             if (p->getSILValue() == False)
             {
-                silParameter->setSILValue(False, SILParameter::Step2a, inst, p);
-                return true;
+               silParameter->setSILValue(False, SILParameter::Step2a, inst, p);
+ 
+               return true;
             }
         }
     }
@@ -333,19 +334,6 @@ void decompile(IELSection* ielSection)
     std::cout << "<end>\n";
 }
 #endif
-void SIL::isUsedInLoadStore(GetElementPtrInst* instr, bool &result)
-{
-    for (Value::use_iterator i = instr->use_begin(); i != instr->use_end(); ++i)
-    {
-        if (GetElementPtrInst* instr2 = dyn_cast<GetElementPtrInst>(*i))
-        {
-            isUsedInLoadStore(instr2, result);
-        }
-        else if (isa<LoadInst>(*i)) result = true;
-        else if (isa<StoreInst>(*i)) result = true;
-    }
-}
-
 bool SIL::checkIELSection(IELSection* ielSection)
 {
     //Loop* loop = ielSection->getLoop();
@@ -398,7 +386,8 @@ bool SIL::checkIELSection(IELSection* ielSection)
                             if (isa<Constant>(*j) || !isa<Instruction>(*j)) continue;
 
                             SILParameter* parameter = ielSection->getSILParameter(*j);
-                            assert(parameter != NULL);
+                            //parameter->print();
+
                             if (parameter->getSILValue() == False)
                             {
                                 if (printRejected)
@@ -421,14 +410,22 @@ bool SIL::checkIELSection(IELSection* ielSection)
                     }
                 }
             }
+#if 0
             else if (GetElementPtrInst *getElementPtrInst = dyn_cast<GetElementPtrInst>(instr))
             {
-                bool result;
-                isUsedInLoadStore(getElementPtrInst, result);
-                if (!result)
+                if (!ielSection->usedInLoadStore(getElementPtrInst))
                 {
                     //std::cout << *instr << std::endl;
                     SILParameter* parameter = ielSection->getSILParameter(instr);
+                    
+                    if (parameter == NULL)
+                    {
+                        std::cout << "error: " << getLineNumber(instr) << "\n";
+                        instr->dump(); 
+                    }
+
+                    assert(parameter != NULL);
+
                     if (parameter->getSILValue() == False)
                     {
                         if (printRejected)
@@ -442,6 +439,7 @@ bool SIL::checkIELSection(IELSection* ielSection)
                     }
                 }
             }
+#endif
         }
     }
 
