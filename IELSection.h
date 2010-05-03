@@ -36,9 +36,13 @@ class IELSection
         Loop* getLoop(void) { return m_loop; }
         SILParameterList& getSILParameters(void) { return m_silParameters; }
 
+        bool usedInLoadStore(GetElementPtrInst* instr);
         void printIELSection(void);
 	void generateGraphVizFile(std::fstream& file);
         void print(void);
+
+    private:
+        void usedInLoadStore(GetElementPtrInst* instr, bool &result);
 
     private:
         Loop* m_loop;

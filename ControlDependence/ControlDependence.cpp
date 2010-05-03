@@ -15,6 +15,7 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Analysis/PostDominators.h"
 #include "ControlDependence.h"
+#include <iostream>
 
 using namespace llvm;
 
@@ -53,7 +54,7 @@ bool ControlDependence::isControlDependent(BasicBlock* B, BasicBlock* A) const {
 bool ControlDependence::isControlDependent(Instruction* B, Instruction* A) const {
     assert(A != NULL && B != NULL && "Inputs cannot be NULL");
 
-    if (A != getBranchCondition(A->getParent()))
+    if (A != getBranchInstruction(A->getParent()))
     {
         return false;
     }
@@ -74,7 +75,8 @@ ControlDependence::getControlDependenceInstructions(Instruction* A) {
     for (std::vector<BasicBlock*>::const_iterator I = dependence_begin(P), E = dependence_end(P);
             I != E; ++I)
     {
-        DepInsts.push_back(getBranchCondition(*I));
+        Instruction* B = getBranchInstruction(*I);
+        DepInsts.push_back(B);
     }
 
     return DepInsts;
@@ -114,6 +116,7 @@ bool ControlDependence::runOnFunction(Function& F) {
             if (!PDT.dominates(B, C))
             {
                 notDominated.push_back(CFGEdge(C, B));
+                assert(getBranchInstruction(C) != NULL && "bug in PDT!");
             }
 
             if (Visited.count(B) == false)
@@ -153,23 +156,41 @@ bool ControlDependence::runOnFunction(Function& F) {
     return false;
 }
 
-Instruction* ControlDependence::getBranchCondition(BasicBlock* B) const {
+Instruction* ControlDependence::getBranchInstruction(BasicBlock* B) const {
     assert(B != NULL && "Input cannot be NULL");
 
+/*
     if (ControlDependents.find(B) == ControlDependents.end())
     {
+        std::cout << B->getName().str() << " has not control dependents\n";
         return NULL;
     }
-
+*/
     TerminatorInst* TI = B->getTerminator();
     assert(TI != NULL && "Incorrect control dependence");
 
-    BranchInst* BI = dyn_cast<BranchInst>(TI);
-    assert(BI != NULL && BI->isConditional() && "Incorrect control dependence");
+    Instruction* C = NULL;
+    if (BranchInst* BI = dyn_cast<BranchInst>(TI))
+    {
+        assert(BI->isConditional() && "Incorrect control dependence");
+        C = BI; 
+    }
+    else if (SwitchInst* SI = dyn_cast<SwitchInst>(TI))
+    {
+        C = SI;
+    }
+    else if (InvokeInst *II = dyn_cast<InvokeInst>(TI))
+    {
+        C = II;
+    }
 
-    Instruction* C = cast<Instruction>(BI->getCondition());
-    assert(C != NULL && "Condition in branch is NULL");
-
+/*
+    if (C ==  NULL)
+    {
+        TI->dump();
+        std::cout << B->getName().str() << " of " << B->getParent()->getName().str() << std::endl;
+    }
+*/
     return C;
 }
 
@@ -179,7 +200,7 @@ void ControlDependence::getAnalysisUsage(AnalysisUsage& AU) const {
 }
 
 //print - Show contents in human readable format...
-void ControlDependence::print(std::ostream& O) const {
+void ControlDependence::printDependences(std::ostream& O) const {
     for (ControlDependentTy::const_iterator I = ControlDependents.begin(), 
             E = ControlDependents.end(); I != E; ++I)
     {

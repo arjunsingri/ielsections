@@ -38,6 +38,36 @@ SILParameter* IELSection::getSILParameter(Value* value)
     return NULL;
 }
 
+bool IELSection::usedInLoadStore(GetElementPtrInst* instr)
+{
+    bool result = false;
+    usedInLoadStore(instr, result);
+    return result;
+}
+
+void IELSection::usedInLoadStore(GetElementPtrInst* instr, bool &result)
+{
+    for (Value::use_iterator i = instr->use_begin(); i != instr->use_end(); ++i)
+    {
+        //Instruction* use = dyn_cast<Instruction>(*i);
+        //assert(use != NULL);
+
+        if (GetElementPtrInst* instr2 = dyn_cast<GetElementPtrInst>(*i))
+        {
+            usedInLoadStore(instr2, result);
+        }
+        else if (isa<LoadInst>(*i) || isa<StoreInst>(*i))
+        {
+            //return true only if the value has uses in the body of the loop
+            //if (use->getParent() != m_loop->getHeader())
+            {
+//                assert(m_loop->contains(use));
+                result = true;
+            }
+        }
+    }
+}
+
 void IELSection::printIELSection(void)
 {
     if (m_isIELSection)

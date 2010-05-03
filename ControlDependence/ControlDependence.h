@@ -82,11 +82,11 @@ class ControlDependence : public FunctionPass {
         virtual void getAnalysisUsage(AnalysisUsage& AU) const;
 
         //print - Show contents in human readable format...
-        void print(std::ostream& O) const;
+        void printDependences(std::ostream& O) const;
 
     private:
         
-        Instruction* getBranchCondition(BasicBlock* B) const;
+        Instruction* getBranchInstruction(BasicBlock* B) const;
 };
 
 } //End llvm namespace

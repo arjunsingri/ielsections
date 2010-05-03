@@ -46,9 +46,9 @@ public:
     void setCP(std::vector<Instruction*> cp) { m_cp = cp; }
 
     SILValue getSILValue(void) { assert(m_silValue != NotInitialized); return m_silValue; }
-    void setSILValue(SILValue silValue) { m_silValue = silValue; }
-    void setSILValue(SILValue silValue, RejectedStep step) { m_silValue = silValue; m_step = step; }
-    void setSILValue(SILValue silValue, RejectedStep step, Instruction* step2Inst, SILParameter* rejectionSource) { m_silValue = silValue; m_step = step; m_rejectionSource = rejectionSource; m_step2Inst = step2Inst; }
+    void setSILValue(SILValue silValue);
+    void setSILValue(SILValue silValue, RejectedStep step);
+    void setSILValue(SILValue silValue, RejectedStep step, Instruction* step2Inst, SILParameter* rejectionSource); 
 
     void constructDefinitionList(ReachingDef* reachingDef);
 

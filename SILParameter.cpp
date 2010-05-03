@@ -27,8 +27,8 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
         std::vector<StoreInst*>& stores = reachingDef->getDefinitions(loadInst);
  
        //TODO:is this really required?
-        //m_definitions.push_back(m_value);
-        //m_definitionParents.push_back(loadInst->getParent());
+        m_definitions.push_back(m_value);
+        m_definitionParents.push_back(loadInst->getParent());
 
         for (std::vector<StoreInst*>::iterator i = stores.begin(); i != stores.end(); ++i)
         {
@@ -97,6 +97,27 @@ void SILParameter::findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& v
     }
 }
 
+void SILParameter::setSILValue(SILValue silValue)
+{
+    m_silValue = silValue;
+}
+
+void SILParameter::setSILValue(SILValue silValue, RejectedStep step)
+{
+    assert(silValue == False);
+    m_silValue = silValue; 
+    m_step = step;
+}
+
+void SILParameter::setSILValue(SILValue silValue, RejectedStep step, Instruction* step2Inst, SILParameter* rejectionSource)
+{
+    assert(silValue == False);
+    m_silValue = silValue;
+    m_step = step; 
+    m_rejectionSource = rejectionSource; 
+    m_step2Inst = step2Inst;
+}
+
 void SILParameter::printSILValue(void)
 {
     switch (m_silValue)
@@ -131,16 +152,17 @@ void SILParameter::addRD(unsigned int i)
 
 void SILParameter::print(void)
 {
+    std::cerr << "Line: " << getLineNumber(m_beta->getHeader()->getFirstNonPHI()) << std::endl;
+    std::cerr << "Loop: " << m_beta->getHeader()->getName().str() << std::endl;
+    std::cerr << "Line: " << getLineNumber(m_s) << std::endl;
     std::cerr << "Value: ";
     std::cerr.flush();
     m_value->dump();
     //std::cerr << "Instruction: ";
     //std::cerr.flush();
     //m_s->dump();
-    std::cerr << "Line: " << getLineNumber(m_s) << std::endl;
     printRejectionPath();
-    std::cerr << "Loop: " << m_beta->getHeader()->getName().str() << std::endl;
-    std::cerr << "Line: " << getLineNumber(m_beta->getHeader()->getFirstNonPHI()) << std::endl;
+    printSILValue();
 }
 
 void SILParameter::printRejectionPath(void)
