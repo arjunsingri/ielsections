@@ -58,29 +58,51 @@ std::set<Value*> ReachingDef::findCoreOperand(Value* pointerOperand, Value** cor
     assert(pointerOperand != NULL && "target of store inst obtained incorrectly");
 
     std::set<Value*> indices;
-    if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(pointerOperand))
+    if (isa<GetElementPtrInst>(pointerOperand) || isa<CastInst>(pointerOperand))
     {
-        GetElementPtrInst* operand = getElementPtrInst;
-        GetElementPtrInst* previous;
+        Value* operand = pointerOperand;
+        Value* previous;
+        bool more;
 
-        do 
+        do
         {
-            previous = operand;
-
-            for (User::op_iterator index = operand->idx_begin(); index != operand->idx_end(); ++index)
+            more = false;
+            if (GetElementPtrInst* getElementPtrInst = dyn_cast<GetElementPtrInst>(operand))
             {
-                indices.insert(*index);
+                for (User::op_iterator index = getElementPtrInst->idx_begin(); index != getElementPtrInst->idx_end(); ++index)
+                {
+                    indices.insert(*index);
+                }
+                
+                more = true;
+                previous = operand;
+                operand = getElementPtrInst->getPointerOperand();
             }
+            else if (CastInst* castInst = dyn_cast<CastInst>(operand))
+            {
+                int j = 0;
+                Value* op = NULL;
+                for (User::op_iterator i = castInst->op_begin(); i != castInst->op_end(); ++i)
+                {
+                    op = *i;
+                    ++j;
+                }
 
-            operand = dyn_cast<GetElementPtrInst>(operand->getPointerOperand());
+                assert(j == 1);
+                more = true;
+                previous = operand;
+                operand = op;
+            }
+        } while (more);
 
-        } while (operand != NULL);
+        //get - operand
 
-        getElementPtrInst = previous;
-        *coreOperand = getElementPtrInst->getPointerOperand();
+        assert(operand != NULL);
+        *coreOperand = operand;
+
         if (coreOperandType != NULL)
         {
-            *coreOperandType = getElementPtrInst->getPointerOperandType()->getElementType();
+            *coreOperandType = dyn_cast<PointerType>(operand->getType())->getElementType();
         }
     }
     else
