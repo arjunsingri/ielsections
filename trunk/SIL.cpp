@@ -41,15 +41,19 @@ void SIL::runStep1(IELSection* ielSection)
         currentParameter->constructDefinitionList(m_currentReachingDef);
        
         bool isInside = false, isOutside = false;
- 
+        Loop* loop = ielSection->getLoop();
+
+//        DefinitionParentPairs definitionParentPairs = currentParameter->getDefinitionParentPairs();
+//        for (DefinitionParentPairs::iterator j = definitionParentPairs.begin(); j != definitionParentPairs.end(); ++j)
         for (unsigned int j = 0; j < currentParameter->getNumDefinitions(); ++j)
         {
-            Loop* loop = ielSection->getLoop();
             BasicBlock* parent = currentParameter->getDefinitionParent(j);
+//            BasicBlock* parent = (*j).second;
 
             if (loop->contains(parent) && loop->getHeader() != parent)
             {
                 currentParameter->addRD(j);
+//                currentParameter->addRDPair(*j);
                 isInside = true;
             }
             else
@@ -90,17 +94,30 @@ void SIL::computeCP(IELSection* ielSection, SILParameter* silParameter, ControlD
 //return true if the SI/L value for this parameter changes from DontKnow to False
 bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
 {
+//    DefinitionParentPairs defParentPairs = silParameter->getRDPairs();
+//    for (DefinitionParentPairs::iterator i = defParentPairs.begin(); i != defParentPairs.end(); ++i)
     const std::vector<unsigned int>& rd = silParameter->getRD();
     for (unsigned int i = 0; i < rd.size(); ++i)
     {
         Instruction* inst;
-        if ((inst = dyn_cast<Instruction>(silParameter->getDefinition(rd[i]))) == NULL)
+        if ((inst = dyn_cast<Instruction>(silParameter->getDefinition(i))) == NULL)
+//        if ((inst = dyn_cast<Instruction>((*i).first)) == NULL)
         {
             continue;
         }
+/*
+        assert(inst == silParameter->getDefinition(i));
+        BasicBlock* parentDefinition = silParameter->getDefinitionParent(i);
+        if (inst->getParent() != parentDefinition)
+        {
+            std::cerr << inst->getParent()->getName().str() << std::endl;
+            std::cerr << parentDefinition->getName().str() << std::endl;
+        }
 
-        assert(ielSection->getLoop()->contains(silParameter->getDefinitionParent(rd[i])));
-
+        assert(inst->getParent() == parentDefinition);
+        assert(ielSection->getLoop()->contains(parentDefinition));
+        assert(ielSection->getLoop()->contains(inst->getParent()));
+*/
         for (User::op_iterator j = inst->op_begin(); j != inst->op_end(); ++j)
         {
             if (isa<Constant>(*j) || !isa<Instruction>(*j) || isa<BasicBlock>(*j)) continue;
@@ -112,7 +129,7 @@ bool SIL::recomputeSILValue(SILParameter* silParameter, IELSection* ielSection)
             if (p == NULL)
             { 
                 //std::cout << "error: " << *inst << std::endl;
-		std::cout << "error: ";
+		std::cout << "error: " << getLineNumber(inst) << std::endl;
 		inst->dump();
 		std::cout << std::endl;
                 //std::cout << *(j->get()) << std::endl; 
@@ -356,8 +373,28 @@ bool SIL::checkIELSection(IELSection* ielSection)
                 for (std::set<Value*>::iterator index = indices.begin(); index != indices.end(); ++index)
                 {
                     if (isa<Constant>(*index) || !isa<Instruction>(*index)) continue;
-                    
                     SILParameter* parameter = ielSection->getSILParameter(*index);
+
+                    if (Instruction *indexInstruction = dyn_cast<Instruction>(*index))
+                    {
+                        std::vector<BasicBlock*>::iterator where = std::find(blocks.begin(), blocks.end(), indexInstruction->getParent());
+                        if (where == blocks.end())
+                        {
+                            //TODO:this means that the definition for this index is outside of the loop and its use is also outside the loop
+                            //assert(parameter == NULL);
+                            continue;
+                        }
+                    }
+
+                    if (parameter == NULL)
+                    { 
+                        std::cout << "error: " << getLineNumber(instr) << std::endl;
+                        (instr)->dump();
+                        std::cout << instr->getParent()->getName().str() << std::endl;
+                        std::cout << std::endl;
+                        (*index)->dump(); 
+                    }
+
                     assert(parameter != NULL);
 
                     if (parameter->getSILValue() == False)
