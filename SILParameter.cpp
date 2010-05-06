@@ -30,10 +30,14 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
         m_definitions.push_back(m_value);
         m_definitionParents.push_back(loadInst->getParent());
 
+        m_definitionParentPairs.push_back(DefinitionParentPair(m_value, loadInst->getParent()));
+
         for (std::vector<StoreInst*>::iterator i = stores.begin(); i != stores.end(); ++i)
         {
             m_definitions.push_back(*i);
             m_definitionParents.push_back((*i)->getParent());
+        
+            m_definitionParentPairs.push_back(DefinitionParentPair(*i, (*i)->getParent()));
         }
  
 /*
@@ -58,6 +62,8 @@ void SILParameter::constructDefinitionList(ReachingDef* reachingDef)
     {
         m_definitions.push_back(m_value);
         m_definitionParents.push_back(dyn_cast<Instruction>(m_value)->getParent());
+        
+        m_definitionParentPairs.push_back(DefinitionParentPair(m_value, dyn_cast<Instruction>(m_value)->getParent()));
     }
 
     assert(m_definitions.size() == m_definitionParents.size());
@@ -76,8 +82,8 @@ void SILParameter::findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& v
     unsigned int incomingSize = phiNode->getNumIncomingValues();
     for (unsigned int i = 0; i < incomingSize; ++i)
     {
-        BasicBlock* valueParent = phiNode->getIncomingBlock(i);
         Value* value = phiNode->getIncomingValue(i);
+        BasicBlock* valueParent = phiNode->getIncomingBlock(i);
 
         if (isa<UndefValue>(value)) continue;
         assert(!isa<BasicBlock>(value));
@@ -91,8 +97,20 @@ void SILParameter::findDefinitions(PHINode* phiNode, std::map<PHINode*, bool>& v
         }
         else
         {
-            m_definitions.push_back(value);
-            m_definitionParents.push_back(valueParent);
+            if (Instruction* inst = dyn_cast<Instruction>(value))
+            {
+                m_definitions.push_back(value);
+                m_definitionParents.push_back(inst->getParent());
+        
+                m_definitionParentPairs.push_back(DefinitionParentPair(value, inst->getParent()));
+            }
+            else
+            {
+                m_definitions.push_back(value);
+                m_definitionParents.push_back(valueParent);
+
+                m_definitionParentPairs.push_back(DefinitionParentPair(value, valueParent));
+            }
         }
     }
 }
