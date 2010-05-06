@@ -18,6 +18,9 @@ enum SILValue
     DontKnow
 };
 
+typedef std::pair<Value*, BasicBlock*> DefinitionParentPair;
+typedef std::vector<DefinitionParentPair> DefinitionParentPairs;
+
 class SILParameter
 {
 public:
@@ -29,7 +32,6 @@ public:
         Step2b
     };
 
-
     SILParameter(Loop* beta, Value* value, Instruction* s);
     void printSILValue(void);
     Loop* getLoop(void) { return m_beta; }
@@ -39,6 +41,9 @@ public:
     Value* getValue(void) { return m_value; }
     
     void addRD(unsigned int i);
+    void addRDPair(Instruction* inst, BasicBlock* parent) { m_definitionParentPairs.push_back(DefinitionParentPair(inst, parent)); }
+    void addRDPair(DefinitionParentPair pair) { m_definitionParentPairs.push_back(pair); }
+    DefinitionParentPairs getRDPairs(void) { return m_rdPairs; }
     std::vector<unsigned int> getRD(void) { return m_rd; }
    
     void addCP(Instruction* inst) { m_cp.push_back(inst); }
@@ -53,6 +58,8 @@ public:
     void constructDefinitionList(ReachingDef* reachingDef);
 
     unsigned int getNumDefinitions(void) { return m_definitions.size(); }
+    std::vector<Value*> getDefinitions(void) { return m_definitions; }
+    DefinitionParentPairs getDefinitionParentPairs(void) { return m_definitionParentPairs; }
     Value* getDefinition(unsigned int i) { return m_definitions[i]; }
     BasicBlock* getDefinitionParent(unsigned int i) { return m_definitionParents[i]; }
 
@@ -75,10 +82,12 @@ private:
     SILValue m_silValue;
 
     std::vector<unsigned int> m_rd;
+    DefinitionParentPairs m_rdPairs;
     std::vector<Instruction*> m_cp;
 
     std::vector<Value*> m_definitions;
     std::vector<BasicBlock*> m_definitionParents;
+    DefinitionParentPairs m_definitionParentPairs;
     std::vector<int> m_rejectedPath;
     RejectedStep m_step;
     Instruction* m_step2Inst; //for lack of a better name
