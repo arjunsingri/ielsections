@@ -106,9 +106,6 @@ bool ControlDependence::runOnFunction(Function& F) {
         BasicBlock* C = BQ.front();
         BQ.pop();
 
-        //mark block C as visited
-        Visited.insert(std::pair<BasicBlock*, bool>(C, true));
-
         for (succ_iterator I = succ_begin(C), E = succ_end(C); I != E; ++I)
         {
             BasicBlock* B = *I;
@@ -121,6 +118,8 @@ bool ControlDependence::runOnFunction(Function& F) {
 
             if (Visited.count(B) == false)
             {
+                //mark block C as visited
+                Visited.insert(std::pair<BasicBlock*, bool>(B, true));
                 BQ.push(B);
             }
         }
