@@ -109,7 +109,6 @@ class ReachingDef : public FunctionPass
 
         void printa(void);
 
-        static std::set<Value*> findCoreOperand(Value* pointerOperand, Value** coreOperand, const Type** coreOperandType=0);
         //print - Show contents in human readable format...
         //virtual void print(std::ostream& O, const Module* = 0) const;
 

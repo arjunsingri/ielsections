@@ -29,6 +29,17 @@ class SIL : public FunctionPass
     std::map<Loop*, std::set<Loop*> > m_loopGraph;
 
     public:
+    
+    struct Counts
+    {
+        Counts() : totalLoops(0), selectedLoops(0), afterFinalCheck(0) { }
+        int totalLoops;
+        int selectedLoops;
+        int afterFinalCheck;
+    };
+    
+    Counts m_counts;
+
         static char ID;
         
         SIL();
