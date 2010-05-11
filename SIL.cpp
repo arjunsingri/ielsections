@@ -6,6 +6,7 @@ using namespace llvm;
 
 cl::opt<std::string> graphFile("iel:graph", cl::desc("Specify filename for the dot file"), cl::value_desc("filename"));
 cl::opt<bool> printRejected("iel:print-rejected", cl::desc("Print rejected candidates for IE/L-sections"));
+cl::opt<bool> printCount("iel:print-counts", cl::desc("Print the number of IE/L-sections and IE/L-section candidates"));
 
 char SIL::ID = 0;
 static RegisterPass<SIL> sil("iel", "find all IE/L sections");
@@ -367,9 +368,8 @@ bool SIL::checkIELSection(IELSection* ielSection)
                 //std::cout << *loadInst << std::endl;
 		//loadInst->dump();
 
-                Value* coreOperand;
-                std::set<Value*> indices = ReachingDef::findCoreOperand(loadInst->getPointerOperand(), &coreOperand);
-
+               Value* coreOperand;
+               std::set<Value*> indices = findCoreOperand(loadInst->getPointerOperand(), &coreOperand);
                 for (std::set<Value*>::iterator index = indices.begin(); index != indices.end(); ++index)
                 {
                     if (isa<Constant>(*index) || !isa<Instruction>(*index)) continue;
@@ -423,7 +423,6 @@ bool SIL::checkIELSection(IELSection* ielSection)
                             if (isa<Constant>(*j) || !isa<Instruction>(*j)) continue;
 
                             SILParameter* parameter = ielSection->getSILParameter(*j);
-                            //parameter->print();
 
                             if (parameter->getSILValue() == False)
                             {
@@ -499,26 +498,37 @@ bool SIL::runOnFunction(Function& function)
     char buffer[10];
     sprintf(buffer, "_%d", id);
 
+    m_counts = Counts();
+    std::vector<BasicBlock*> headers;
     std::map<Loop*, bool> visited;
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
         Loop* loop = loopInfo.getLoopFor(i);
         if (loop == NULL) continue;
         if (visited.find(loop) != visited.end()) continue;
-        visited[loop] = true;
+        visited.insert(std::pair<Loop*, bool>(loop, true));
 
+        for (std::vector<BasicBlock*>::iterator j = headers.begin(); j != headers.end(); ++j)
+        {
+            assert(*j != loop->getHeader());
+        }
+
+        headers.push_back(loop->getHeader());
         assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
 
         if (IELSection* ielSection = addIELSection(loop))
         {
+            ++m_counts.selectedLoops;
             runStep1(ielSection);
             runStep2(ielSection);
             runStep3(ielSection);
 
             bool isIELSection = checkIELSection(ielSection);
+
             ielSection->setIELSection(isIELSection);
             if (isIELSection)
             {
+                ++m_counts.afterFinalCheck;
                 m_ielSections.push_back(ielSection);
                 ielSection->printIELSection();
             }
@@ -532,6 +542,16 @@ bool SIL::runOnFunction(Function& function)
 //	printAdjacentLoops(loop, loopInfo, buffer);
     }
 
+    m_counts.totalLoops = visited.size();
+
+    if (printCount)
+    {
+        if (m_counts.totalLoops != 0)
+        {
+            std::cerr << "Loop count: " << m_counts.totalLoops << std::endl;
+            std::cerr << "After final check: " << m_counts.afterFinalCheck << std::endl;
+        }
+    }
     /*
     visited.clear();
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
@@ -548,6 +568,7 @@ bool SIL::runOnFunction(Function& function)
     return false;
 }
 
+/*
 void SIL::printNode(Loop* loop, char* id, bool isFilled)
 {
     int lineNumber = getLineNumber(loop);
@@ -571,7 +592,7 @@ void SIL::printNode(Loop* loop, char* id, bool isFilled)
     m_file << "\"]\n";
 
 }
-
+*/
 void SIL::printEdge(Loop* srcLoop, Loop* dstLoop, char* id)
 {
     const std::string& src = srcLoop->getHeader()->getName().str() + id;

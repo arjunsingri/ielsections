@@ -107,7 +107,10 @@ void IELSection::generateGraphVizFile(std::fstream& file)
 void IELSection::print(void)
 {
     //SILParameterList& silParameters = getSILParameters();
-    std::cerr << "Line no: " << getLineNumber(m_loop) << "\nSource file: " << getSourceFile(m_loop) << std::endl;
+    std::pair<int, int> range = getLineNumber(m_loop);
+
+    std::cerr << "Line no: " << range.first << std::endl;
+    std::cerr << "Range: " << range.first << "-" << range.second << "\nSource file: " << getSourceFile(m_loop) << std::endl;
     std::cerr << "Loop header: " << m_loop->getHeader()->getName().str() << std::endl;
     std::cerr << "Function: " << m_loop->getHeader()->getParent()->getName().str() << std::endl;
 
