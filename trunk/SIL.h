@@ -32,9 +32,8 @@ class SIL : public FunctionPass
     
     struct Counts
     {
-        Counts() : totalLoops(0), selectedLoops(0), afterFinalCheck(0) { }
+        Counts() : totalLoops(0), afterFinalCheck(0) { }
         int totalLoops;
-        int selectedLoops;
         int afterFinalCheck;
     };
     
@@ -73,6 +72,7 @@ class SIL : public FunctionPass
 
         //virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
         virtual bool runOnFunction(Function& function);
+        void checkLoop(Loop* loop);
 
         static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
 
