@@ -42,6 +42,12 @@ std::set<Value*> findCoreOperand(Value* pointerOperand, Value** coreOperand, con
                 previous = operand;
                 operand = op;
             }
+            else if (LoadInst* loadInst = dyn_cast<LoadInst>(operand))
+            {
+                previous = operand;
+                operand = loadInst->getPointerOperand();
+                more = true;
+            }
         } while (more);
 
         //get - operand
