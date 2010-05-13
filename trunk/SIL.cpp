@@ -483,7 +483,72 @@ bool SIL::checkIELSection(IELSection* ielSection)
     return isIELSection;
 }
 
-//bool SIL::runOnLoop(Loop* loop, LPPassManager &lpm)
+void SIL::checkLoop(Loop* loop)
+{
+    ++m_counts.totalLoops;
+    assert(m_currentReachingDef->getCurrentFunction() == loop->getHeader()->getParent());
+
+    if (IELSection* ielSection = addIELSection(loop))
+    {
+        runStep1(ielSection);
+        runStep2(ielSection);
+        runStep3(ielSection);
+
+        bool isIELSection = checkIELSection(ielSection);
+
+        ielSection->setIELSection(isIELSection);
+        if (isIELSection)
+        {
+            ++m_counts.afterFinalCheck;
+            m_ielSections.push_back(ielSection);
+            ielSection->printIELSection();
+        }
+        else
+        {
+            const std::vector<Loop*>& subLoops = loop->getSubLoops();
+            for (std::vector<Loop*>::const_iterator i = subLoops.begin(); i != subLoops.end(); ++i)
+            {
+                checkLoop(*i);
+            }
+        }
+    }
+}
+
+#if 1
+bool SIL::runOnFunction(Function& function)
+{
+    m_currentReachingDef = &getAnalysis<ReachingDef>();
+    LoopInfo& loopInfo = getAnalysis<LoopInfo>();
+
+    std::string functionName = function.getName().str();
+    m_file << "subgraph cluster_" << functionName << "{\n";
+    m_file << "label = " << functionName << std::endl;
+
+    static int id = 0;
+    ++id;
+    char buffer[10];
+    sprintf(buffer, "_%d", id);
+
+    m_counts = Counts();
+    for (LoopInfo::iterator i = loopInfo.begin(); i != loopInfo.end(); ++i)
+    {
+        Loop* loop = *i;
+        checkLoop(loop);
+    }
+
+    if (printCount)
+    {
+        if (m_counts.totalLoops != 0)
+        {
+            std::cerr << "Loop count: " << m_counts.totalLoops << std::endl;
+            std::cerr << "After final check: " << m_counts.afterFinalCheck << std::endl;
+        }
+    }
+    
+    return false;
+}
+
+#else
 bool SIL::runOnFunction(Function& function)
 {
     m_currentReachingDef = &getAnalysis<ReachingDef>();
@@ -501,6 +566,7 @@ bool SIL::runOnFunction(Function& function)
     m_counts = Counts();
     std::vector<BasicBlock*> headers;
     std::map<Loop*, bool> visited;
+
     for (Function::iterator i = function.begin(); i != function.end(); ++i)
     {
         Loop* loop = loopInfo.getLoopFor(i);
@@ -518,7 +584,6 @@ bool SIL::runOnFunction(Function& function)
 
         if (IELSection* ielSection = addIELSection(loop))
         {
-            ++m_counts.selectedLoops;
             runStep1(ielSection);
             runStep2(ielSection);
             runStep3(ielSection);
@@ -567,6 +632,8 @@ bool SIL::runOnFunction(Function& function)
     m_file << "}\n";
     return false;
 }
+
+#endif
 
 /*
 void SIL::printNode(Loop* loop, char* id, bool isFilled)
