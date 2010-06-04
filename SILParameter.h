@@ -41,11 +41,13 @@ public:
     Value* getValue(void) { return m_value; }
     
     void addRD(unsigned int i);
+    void printRD(void);
     void addRDPair(Instruction* inst, BasicBlock* parent) { m_definitionParentPairs.push_back(DefinitionParentPair(inst, parent)); }
     void addRDPair(DefinitionParentPair pair) { m_definitionParentPairs.push_back(pair); }
     DefinitionParentPairs getRDPairs(void) { return m_rdPairs; }
     std::vector<unsigned int> getRD(void) { return m_rd; }
    
+    void printCP(void);
     void addCP(Instruction* inst) { m_cp.push_back(inst); }
     std::vector<Instruction*> getCP(void) { return m_cp; }
     void setCP(std::vector<Instruction*> cp) { m_cp = cp; }
