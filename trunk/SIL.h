@@ -27,6 +27,7 @@ class SIL : public FunctionPass
     int m_id;
     std::fstream m_file;
     std::map<Loop*, std::set<Loop*> > m_loopGraph;
+    std::vector<int> m_histogram;
 
     public:
     
@@ -67,12 +68,13 @@ class SIL : public FunctionPass
         //TODO: find suitable name
         //return NULL if this loop's body is not considered an IE/L section
         //the plan is to ignore all loops which call functions
-        IELSection* addIELSection(Loop* loop);
-        bool checkIELSection(IELSection* ielSection);
+        IELSection* createIELSection(Loop* loop);
+        bool finalCheck(IELSection* ielSection);
+        void checkOuterLoops(Loop* loop);
 
         //virtual bool runOnLoop(Loop* loop, LPPassManager &lpm);
         virtual bool runOnFunction(Function& function);
-        void checkLoop(Loop* loop);
+        IELSection* checkLoop(Loop* loop);
 
         static void isUsedInLoadStore(GetElementPtrInst* instr, bool &result);
 
