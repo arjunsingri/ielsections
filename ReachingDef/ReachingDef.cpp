@@ -204,6 +204,12 @@ void ReachingDef::findDefinitions(BasicBlockDup* blockDup, LoadInst* loadInst)
 
     Value* loadCoreOperand = NULL;
     findCoreOperand(loadInst->getPointerOperand(), &loadCoreOperand);
+    
+    //TODO: this check should be removed
+    if (loadCoreOperand == NULL)
+    {
+        return;
+    }
     assert(loadCoreOperand != NULL);
 
     for (InSetType::iterator i = inSet.begin(); i != inSet.end(); ++i)

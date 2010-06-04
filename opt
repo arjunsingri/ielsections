@@ -1,2 +1,2 @@
-opt -load ../../../Debug/lib/reaching-def.so -load ../../../Debug/lib/control-dependence.so -load ../../../Debug/lib/iel.so -iel -iel:print-counts hello.bc
+opt -load ../../../Debug/lib/reaching-def.so -load ../../../Debug/lib/control-dependence.so -load ../../../Debug/lib/iel.so -iel -iel:outer-loops -iel:print-counts -iel:skip-empty-body-loops hello.bc
 
