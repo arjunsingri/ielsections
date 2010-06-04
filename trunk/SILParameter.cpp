@@ -168,6 +168,30 @@ void SILParameter::addRD(unsigned int i)
     assert(m_beta->contains(m_definitionParents[i]));
 }
 
+void SILParameter::printCP(void)
+{
+    print();
+    for (int i = 0; i < m_cp.size(); ++i)
+    {
+        std::cerr << "cp\n";
+        m_cp[i]->dump();
+    }
+    std::cerr << std::endl;
+    std::cerr << std::endl;
+}
+
+void SILParameter::printRD(void)
+{
+    print();
+    for (int i = 0; i < m_rd.size(); ++i)
+    {
+        std::cerr << "rd\t";
+        m_definitions[m_rd[i]]->dump();
+    }
+    std::cerr << std::endl;
+    std::cerr << std::endl;
+}
+
 void SILParameter::print(void)
 {
     std::cerr << "Line: " << getLineNumber(m_beta->getHeader()->getFirstNonPHI()) << std::endl;
@@ -179,7 +203,7 @@ void SILParameter::print(void)
     //std::cerr << "Instruction: ";
     //std::cerr.flush();
     //m_s->dump();
-    printRejectionPath();
+    //printRejectionPath();
     printSILValue();
 }
 
